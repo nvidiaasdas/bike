@@ -27,22 +27,21 @@ export default function Header() {
         console.log('Fetching categories...');
         const { data, error } = await supabase
           .from('categories')
-          .select('id, name, slug, parent_id')
+          .select('*')
+          .is('parent_id', null)
           .order('sort_order');
 
         if (error) {
-          console.error('Supabase error fetching categories:', error);
+          console.error('❌ Categories error:', error);
           return;
         }
 
-        console.log('Categories fetched:', data);
+        console.log('✅ Categories fetched:', data?.length || 0);
         if (data) {
-          // Filter for root categories (no parent_id)
-          const rootCats = data.filter(c => !c.parent_id);
-          setCategories(rootCats);
+          setCategories(data);
         }
       } catch (err) {
-        console.error('Exception fetching categories:', err);
+        console.error('❌ Categories exception:', err);
       }
     };
 
