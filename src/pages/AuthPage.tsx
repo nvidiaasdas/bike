@@ -1,11 +1,11 @@
 import { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
-import { Bike } from 'lucide-react';
+import { Bike, ArrowLeft } from 'lucide-react';
 import { z } from 'zod';
 
 const loginSchema = z.object({
@@ -80,7 +80,11 @@ export default function AuthPage() {
   };
 
   return (
-    <div className="min-h-[80vh] flex items-center justify-center py-12">
+    <div className="min-h-screen flex flex-col">
+      <Link to="/" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-primary m-6">
+        <ArrowLeft className="w-4 h-4" /> Înapoi acasă
+      </Link>
+      <div className="flex-1 flex items-center justify-center py-12">
       <div className="w-full max-w-md mx-auto px-4">
         <div className="bg-card rounded-lg border border-border p-8 shadow-sm">
           <div className="flex items-center justify-center gap-2 mb-6">
@@ -148,6 +152,7 @@ export default function AuthPage() {
             </button>
           </div>
         </div>
+      </div>
       </div>
     </div>
   );
