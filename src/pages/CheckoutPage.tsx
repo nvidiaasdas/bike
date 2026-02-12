@@ -19,11 +19,19 @@ const addressSchema = z.object({
   zip: z.string().trim().min(5, 'Codul poștal este obligatoriu').max(10),
 });
 
+// Weight-based shipping calculation: 100 RON per kg
+const calculateWeightShipping = (weight: number, method: string): number => {
+  const baseCost = Math.ceil(weight) * 100; // Round up to nearest kg, then multiply by 100
+  if (method === 'curier') return baseCost;
+  if (method === 'locker') return Math.ceil(baseCost * 0.6); // 60% of courier cost for locker
+  return baseCost;
+};
+
 export default function CheckoutPage() {
   const { user } = useAuth();
-  const { items, totalPrice, clearCart, cartId } = useCart();
+  const { items, totalPrice, totalWeight, clearCart, cartId } = useCart();
   const navigate = useNavigate();
-  
+
   const [shippingMethod, setShippingMethod] = useState('curier');
   const [paymentMethod, setPaymentMethod] = useState('ramburs');
   const [address, setAddress] = useState({ full_name: '', phone: '', city: '', county: '', street: '', zip: '' });
@@ -35,7 +43,9 @@ export default function CheckoutPage() {
   if (!user) return <Navigate to="/auth" state={{ from: { pathname: '/checkout' } }} />;
   if (items.length === 0) return <Navigate to="/cart" />;
 
-  const shippingCost = totalPrice > 500 ? 0 : (shippingMethod === 'curier' ? 25 : 15);
+  // Check if order contains items that need to be ordered (weight > 0 = pe comanda)
+  const hasOrderItems = totalWeight > 0;
+  const shippingCost = hasOrderItems ? calculateWeightShipping(totalWeight, shippingMethod) : (totalPrice > 500 ? 0 : (shippingMethod === 'curier' ? 25 : 15));
   const grandTotal = totalPrice - discount + shippingCost;
 
   const applyCoupon = async () => {
@@ -144,14 +154,29 @@ export default function CheckoutPage() {
           {/* Shipping */}
           <div className="bg-card rounded-lg border border-border p-6">
             <h3 className="font-heading font-bold text-lg mb-4">Metoda de livrare</h3>
+            {hasOrderItems && totalWeight > 0 && (
+              <p className="text-sm text-muted-foreground mb-4">Greutate comandă: {totalWeight.toFixed(2)} kg</p>
+            )}
             <RadioGroup value={shippingMethod} onValueChange={setShippingMethod}>
               <div className="flex items-center space-x-2 p-3 border rounded-md border-border">
                 <RadioGroupItem value="curier" id="curier" />
-                <Label htmlFor="curier" className="flex-1 cursor-pointer">Curier la adresă — {totalPrice > 500 ? 'Gratuit' : '25 RON'}</Label>
+                <Label htmlFor="curier" className="flex-1 cursor-pointer">
+                  Curier la adresă — {
+                    hasOrderItems
+                      ? `${calculateWeightShipping(totalWeight, 'curier')} RON`
+                      : (totalPrice > 500 ? 'Gratuit' : '25 RON')
+                  }
+                </Label>
               </div>
               <div className="flex items-center space-x-2 p-3 border rounded-md border-border mt-2">
                 <RadioGroupItem value="locker" id="locker" />
-                <Label htmlFor="locker" className="flex-1 cursor-pointer">Easybox / Locker — {totalPrice > 500 ? 'Gratuit' : '15 RON'}</Label>
+                <Label htmlFor="locker" className="flex-1 cursor-pointer">
+                  Easybox / Locker — {
+                    hasOrderItems
+                      ? `${calculateWeightShipping(totalWeight, 'locker')} RON`
+                      : (totalPrice > 500 ? 'Gratuit' : '15 RON')
+                  }
+                </Label>
               </div>
             </RadioGroup>
           </div>
@@ -175,11 +200,14 @@ export default function CheckoutPage() {
         {/* Summary */}
         <div className="bg-card rounded-lg border border-border p-6 h-fit sticky top-32">
           <h3 className="font-heading font-bold text-lg mb-4">Sumar comandă</h3>
-          
+
           <div className="space-y-2 text-sm mb-4">
             {items.map(item => (
               <div key={item.id} className="flex justify-between">
-                <span className="text-muted-foreground line-clamp-1">{item.product?.name} x{item.qty}</span>
+                <span className="text-muted-foreground line-clamp-1">
+                  {item.product?.name} x{item.qty}
+                  {item.weight_snapshot ? <span className="block text-xs text-muted-foreground">({(item.qty * item.weight_snapshot).toFixed(2)} kg)</span> : null}
+                </span>
                 <span>{(Number(item.price_snapshot) * item.qty).toFixed(2)}</span>
               </div>
             ))}

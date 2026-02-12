@@ -89,6 +89,7 @@ export default function ProductPage() {
   const images = product.product_images?.sort((a: any, b: any) => a.sort_order - b.sort_order) || [];
   const mainImage = images[selectedImage]?.url || '/placeholder.svg';
   const inStock = product.stock_qty > 0;
+  const weight = product.product_attributes?.find((attr: any) => attr.key.toLowerCase() === 'greutate')?.value;
 
   return (
     <div className="container py-8">
@@ -143,17 +144,22 @@ export default function ProductPage() {
           </div>
 
           {/* Stock */}
-          <div className="flex items-center gap-2 mb-6">
-            {inStock ? (
-              <>
-                <CheckCircle className="w-5 h-5 text-success" />
-                <span className="text-success font-medium">În stoc ({product.stock_qty} buc)</span>
-              </>
-            ) : (
-              <>
-                <AlertCircle className="w-5 h-5 text-destructive" />
-                <span className="text-destructive font-medium">pe comanda</span>
-              </>
+          <div className="mb-6">
+            <div className="flex items-center gap-2 mb-2">
+              {inStock ? (
+                <>
+                  <CheckCircle className="w-5 h-5 text-success" />
+                  <span className="text-success font-medium">În stoc ({product.stock_qty} buc)</span>
+                </>
+              ) : (
+                <>
+                  <AlertCircle className="w-5 h-5 text-destructive" />
+                  <span className="text-destructive font-medium">pe comanda</span>
+                </>
+              )}
+            </div>
+            {!inStock && weight && (
+              <p className="text-sm text-muted-foreground">Greutate: {weight}</p>
             )}
           </div>
 

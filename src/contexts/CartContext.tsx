@@ -8,6 +8,7 @@ interface CartItem {
   product_id: string;
   qty: number;
   price_snapshot: number;
+  weight_snapshot?: number;
   product?: {
     name: string;
     slug: string;
@@ -21,12 +22,13 @@ interface CartContextType {
   items: CartItem[];
   loading: boolean;
   cartId: string | null;
-  addItem: (productId: string, price: number, qty?: number) => Promise<void>;
+  addItem: (productId: string, price: number, qty?: number, weight?: number) => Promise<void>;
   updateQty: (itemId: string, qty: number) => Promise<void>;
   removeItem: (itemId: string) => Promise<void>;
   clearCart: () => Promise<void>;
   totalItems: number;
   totalPrice: number;
+  totalWeight: number;
   refreshCart: () => Promise<void>;
 }
 
@@ -108,23 +110,29 @@ export function CartProvider({ children }: { children: ReactNode }) {
       
       const { data: cartItems } = await supabase
         .from('cart_items')
-        .select(`id, product_id, qty, price_snapshot, products(name, slug, sku, stock_qty, product_images(url))`)
+        .select(`id, product_id, qty, price_snapshot, products(name, slug, sku, stock_qty, product_images(url), product_attributes(key, value))`)
         .eq('cart_id', cart.id);
 
       if (cartItems) {
-        setItems(cartItems.map((ci: any) => ({
-          id: ci.id,
-          product_id: ci.product_id,
-          qty: ci.qty,
-          price_snapshot: ci.price_snapshot,
-          product: ci.products ? {
-            name: ci.products.name,
-            slug: ci.products.slug,
-            sku: ci.products.sku,
-            stock_qty: ci.products.stock_qty,
-            images: ci.products.product_images || [],
-          } : undefined,
-        })));
+        setItems(cartItems.map((ci: any) => {
+          const weightAttr = ci.products?.product_attributes?.find((attr: any) => attr.key.toLowerCase() === 'greutate');
+          const weight = weightAttr ? parseFloat(weightAttr.value) : 0;
+
+          return {
+            id: ci.id,
+            product_id: ci.product_id,
+            qty: ci.qty,
+            price_snapshot: ci.price_snapshot,
+            weight_snapshot: weight,
+            product: ci.products ? {
+              name: ci.products.name,
+              slug: ci.products.slug,
+              sku: ci.products.sku,
+              stock_qty: ci.products.stock_qty,
+              images: ci.products.product_images || [],
+            } : undefined,
+          };
+        }));
       }
     } catch (e) {
       console.error('Cart refresh error:', e);
@@ -136,15 +144,30 @@ export function CartProvider({ children }: { children: ReactNode }) {
     refreshCart();
   }, [user, refreshCart]);
 
-  const addItem = async (productId: string, price: number, qty = 1) => {
+  const addItem = async (productId: string, price: number, qty = 1, weight = 0) => {
     try {
       const cid = await getOrCreateCart();
-      
+
       // Check if item already exists
       const existing = items.find(i => i.product_id === productId);
       if (existing) {
         await updateQty(existing.id, existing.qty + qty);
         return;
+      }
+
+      // If weight not provided, fetch it from product
+      let itemWeight = weight;
+      if (!itemWeight) {
+        const { data: product } = await supabase
+          .from('products')
+          .select('product_attributes(key, value)')
+          .eq('id', productId)
+          .single();
+
+        if (product?.product_attributes) {
+          const weightAttr = product.product_attributes.find((attr: any) => attr.key.toLowerCase() === 'greutate');
+          itemWeight = weightAttr ? parseFloat(weightAttr.value) : 0;
+        }
       }
 
       await supabase.from('cart_items').insert({
@@ -153,7 +176,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
         qty,
         price_snapshot: price,
       });
-      
+
       toast.success('Produs adăugat în coș');
       await refreshCart();
     } catch (e: any) {
@@ -184,9 +207,10 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
   const totalItems = items.reduce((sum, i) => sum + i.qty, 0);
   const totalPrice = items.reduce((sum, i) => sum + i.qty * Number(i.price_snapshot), 0);
+  const totalWeight = items.reduce((sum, i) => sum + (i.qty * (i.weight_snapshot || 0)), 0);
 
   return (
-    <CartContext.Provider value={{ items, loading, cartId, addItem, updateQty, removeItem, clearCart, totalItems, totalPrice, refreshCart }}>
+    <CartContext.Provider value={{ items, loading, cartId, addItem, updateQty, removeItem, clearCart, totalItems, totalPrice, totalWeight, refreshCart }}>
       {children}
     </CartContext.Provider>
   );

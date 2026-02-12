@@ -16,6 +16,7 @@ interface Props {
     condition: string;
     brand?: { name: string } | null;
     images?: { url: string }[];
+    product_attributes?: { key: string; value: string }[];
   };
 }
 
@@ -23,6 +24,7 @@ export default function ProductCard({ product }: Props) {
   const { addItem } = useCart();
   const imgUrl = product.images?.[0]?.url || '/placeholder.svg';
   const inStock = product.stock_qty > 0;
+  const weight = product.product_attributes?.find((attr) => attr.key.toLowerCase() === 'greutate')?.value;
 
   return (
     <div className="group bg-card rounded-lg border border-border overflow-hidden hover:shadow-lg transition-all duration-300 hover:border-primary/30 animate-fade-in">
@@ -76,11 +78,16 @@ export default function ProductCard({ product }: Props) {
           </Button>
         </div>
 
-        <div className="mt-2">
-          {inStock ? (
-            <span className="text-xs text-success">● În stoc ({product.stock_qty})</span>
-          ) : (
-            <span className="text-xs text-destructive">● Pe comanda</span>
+        <div className="mt-2 space-y-1">
+          <div>
+            {inStock ? (
+              <span className="text-xs text-success">● În stoc ({product.stock_qty})</span>
+            ) : (
+              <span className="text-xs text-destructive">● Pe comanda</span>
+            )}
+          </div>
+          {!inStock && weight && (
+            <p className="text-xs text-muted-foreground">Greutate: {weight}</p>
           )}
         </div>
       </div>

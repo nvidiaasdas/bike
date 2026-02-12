@@ -30,6 +30,7 @@ interface Product {
   brands: { name: string } | null;
   product_images: { url: string }[];
   product_attributes?: { key: string; value: string }[];
+  weight?: string;
 }
 
 interface Category { id: string; name: string; slug: string; parent_id: string | null }
@@ -82,7 +83,7 @@ export default function CatalogPage() {
 
       const { data } = await supabase
         .from('products')
-        .select('id, name, slug, price, stock_qty, is_oem, condition, category_id, brands(name), product_images(url)')
+        .select('id, name, slug, price, stock_qty, is_oem, condition, category_id, brands(name), product_images(url), product_attributes(key, value)')
         .eq('is_active', true)
         .in('category_id', categoryIds)
         .limit(100);
@@ -126,7 +127,7 @@ export default function CatalogPage() {
     setLoading(true);
     let query = supabase
       .from('products')
-      .select('id, name, slug, price, stock_qty, is_oem, condition, category_id, brands(name), product_images(url)')
+      .select('id, name, slug, price, stock_qty, is_oem, condition, category_id, brands(name), product_images(url), product_attributes(key, value)')
       .eq('is_active', true);
 
     // Category filter
