@@ -31,7 +31,10 @@ export default function AuthPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrors({});
-    
+
+    // Prevent duplicate submissions
+    if (loading) return;
+
     try {
       if (isLogin) {
         loginSchema.parse({ email, password });
@@ -60,7 +63,11 @@ export default function AuthPage() {
     } else {
       const { error } = await signUp(email, password, fullName);
       if (error) {
-        toast.error(error.message || 'Eroare la înregistrare');
+        if (error.message?.includes('rate')) {
+          toast.error('Prea multe încercări. Încearcă din nou peste câteva minute.');
+        } else {
+          toast.error(error.message || 'Eroare la înregistrare');
+        }
       } else {
         toast.success('Cont creat! Conectează-te cu datele tale.');
         setEmail('');
