@@ -15,3 +15,13 @@ export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABL
     autoRefreshToken: true,
   }
 });
+
+// Test connection on init
+console.log('Supabase client initialized with URL:', SUPABASE_URL);
+supabase.from('categories').select('count', { count: 'exact' }).then(({ count, error }) => {
+  if (error) {
+    console.error('Supabase connection test failed:', error);
+  } else {
+    console.log('Supabase connection successful. Categories count:', count);
+  }
+});

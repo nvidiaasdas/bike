@@ -22,17 +22,31 @@ export default function Header() {
 
   useEffect(() => {
     // Fetch root categories from database
-    supabase.from('categories').select('id, name, slug, parent_id').order('sort_order').then(({ data, error }) => {
-      if (error) {
-        console.error('Error fetching categories:', error);
-        return;
+    const fetchCategories = async () => {
+      try {
+        console.log('Fetching categories...');
+        const { data, error } = await supabase
+          .from('categories')
+          .select('id, name, slug, parent_id')
+          .order('sort_order');
+
+        if (error) {
+          console.error('Supabase error fetching categories:', error);
+          return;
+        }
+
+        console.log('Categories fetched:', data);
+        if (data) {
+          // Filter for root categories (no parent_id)
+          const rootCats = data.filter(c => !c.parent_id);
+          setCategories(rootCats);
+        }
+      } catch (err) {
+        console.error('Exception fetching categories:', err);
       }
-      if (data) {
-        // Filter for root categories (no parent_id)
-        const rootCats = data.filter(c => !c.parent_id);
-        setCategories(rootCats);
-      }
-    });
+    };
+
+    fetchCategories();
   }, []);
 
   const handleSearch = (e: React.FormEvent) => {
