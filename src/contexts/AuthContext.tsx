@@ -58,7 +58,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signUp = async (email: string, password: string, fullName: string) => {
     try {
-      // Create the user without email verification
+      // Create the user
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
@@ -77,14 +77,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           user_id: data.user.id,
           full_name: fullName,
         });
-
-        // Sign in the user immediately so they don't need email verification
-        const { error: signInError } = await supabase.auth.signInWithPassword({
-          email,
-          password,
-        });
-
-        return { error: signInError };
       }
 
       return { error: null };
