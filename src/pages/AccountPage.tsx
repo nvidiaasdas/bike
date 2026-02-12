@@ -36,7 +36,7 @@ export default function AccountPage() {
           fetch(`${SUPABASE_URL}/rest/v1/user_profiles?user_id=eq.${user.id}`, { headers }),
           fetch(`${SUPABASE_URL}/rest/v1/orders?user_id=eq.${user.id}&order=created_at.desc`, { headers }),
           fetch(`${SUPABASE_URL}/rest/v1/addresses?user_id=eq.${user.id}&order=is_default.desc`, { headers }),
-          fetch(`${SUPABASE_URL}/rest/v1/garage_items?user_id=eq.${user.id}&select=*,moto_variants(id,year_from,year_to,engine,trim,moto_models(id,name,moto_makes(id,name)))`, { headers }),
+          fetch(`${SUPABASE_URL}/rest/v1/user_garage?user_id=eq.${user.id}&select=*,moto_variants(id,year_from,year_to,engine,trim,moto_models(id,name,moto_makes(id,name)))`, { headers }),
         ]);
 
         const profileData = await profileRes.json();
