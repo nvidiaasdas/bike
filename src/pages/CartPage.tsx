@@ -1,5 +1,4 @@
 import { Link } from 'react-router-dom';
-import { Link } from 'react-router-dom';
 import { useCart } from '@/contexts/CartContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
