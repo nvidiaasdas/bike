@@ -22,17 +22,18 @@ interface Props {
 }
 
 export default function MotoSelector({ onSelected, compact }: Props) {
-  const { setSelected } = useMoto();
+  const { selected, setSelected } = useMoto();
   const [makes, setMakes] = useState<Make[]>([]);
   const [models, setModels] = useState<Model[]>([]);
   const [variants, setVariants] = useState<Variant[]>([]);
-  
-  const [makeId, setMakeId] = useState('');
-  const [modelId, setModelId] = useState('');
-  const [variantId, setVariantId] = useState('');
 
+  const [makeId, setMakeId] = useState(selected?.makeId || '');
+  const [modelId, setModelId] = useState(selected?.modelId || '');
+  const [variantId, setVariantId] = useState(selected?.variantId || '');
+  const [initialized, setInitialized] = useState(false);
+
+  // Fetch makes via REST API
   useEffect(() => {
-    // Fetch makes via REST API
     fetch(`${SUPABASE_URL}/rest/v1/moto_makes?order=name.asc`, { headers })
       .then(r => r.json())
       .then(data => {
@@ -42,50 +43,54 @@ export default function MotoSelector({ onSelected, compact }: Props) {
       .catch(err => console.error('Makes error:', err));
   }, []);
 
+  // Initialize from selected context
   useEffect(() => {
-    if (!makeId) { 
-      setModels([]); 
-      setModelId(''); 
-      return; 
+    if (selected?.makeId && selected?.modelId && selected?.variantId && !initialized) {
+      console.log('Initializing MotoSelector from context:', selected);
+      setMakeId(selected.makeId);
+      setModelId(selected.modelId);
+      setVariantId(selected.variantId);
+      setInitialized(true);
     }
-    
+  }, [selected, initialized]);
+
+  useEffect(() => {
+    if (!makeId) {
+      setModels([]);
+      return;
+    }
+
     // Fetch models via REST API
     fetch(`${SUPABASE_URL}/rest/v1/moto_models?make_id=eq.${makeId}&order=name.asc`, { headers })
       .then(r => r.json())
       .then(data => {
-        console.log('Models:', data);
+        console.log('Models for make:', data);
         setModels(data || []);
       })
       .catch(err => console.error('Models error:', err));
-    
-    setModelId('');
-    setVariantId('');
   }, [makeId]);
 
   useEffect(() => {
-    if (!modelId) { 
-      setVariants([]); 
-      setVariantId(''); 
-      return; 
+    if (!modelId) {
+      setVariants([]);
+      return;
     }
-    
+
     // Fetch variants via REST API
     fetch(`${SUPABASE_URL}/rest/v1/moto_variants?model_id=eq.${modelId}&order=year_from.asc`, { headers })
       .then(r => r.json())
       .then(data => {
-        console.log('Variants:', data);
+        console.log('Variants for model:', data);
         setVariants(data || []);
       })
       .catch(err => console.error('Variants error:', err));
-    
-    setVariantId('');
   }, [modelId]);
 
   const handleApply = () => {
     const make = makes.find(m => m.id === makeId);
     const model = models.find(m => m.id === modelId);
     const variant = variants.find(v => v.id === variantId);
-    
+
     if (make && model && variant) {
       setSelected({
         makeId: make.id,
@@ -98,6 +103,28 @@ export default function MotoSelector({ onSelected, compact }: Props) {
       onSelected?.();
     }
   };
+
+  // Auto-apply when initialized from context with all required values
+  useEffect(() => {
+    if (initialized && makeId && modelId && variantId && makes.length > 0 && models.length > 0 && variants.length > 0) {
+      console.log('Auto-applying selected bike:', { makeId, modelId, variantId });
+      const make = makes.find(m => m.id === makeId);
+      const model = models.find(m => m.id === modelId);
+      const variant = variants.find(v => v.id === variantId);
+
+      if (make && model && variant) {
+        setSelected({
+          makeId: make.id,
+          makeName: make.name,
+          modelId: model.id,
+          modelName: model.name,
+          variantId: variant.id,
+          variantLabel: `${variant.year_from}-${variant.year_to || 'prezent'} ${variant.engine} ${variant.trim}`,
+        });
+        onSelected?.();
+      }
+    }
+  }, [initialized, makeId, modelId, variantId, makes, models, variants]);
 
   const containerClass = compact
     ? 'flex flex-wrap items-end gap-2'
