@@ -9,18 +9,18 @@ const SUPABASE_URL = 'https://cgboawjncqqasijhqgkv.supabase.co';
 const API_KEY = 'sb_publishable_3w5FPK8BTYy6JQIuzHcFVA_rWVwrt5_';
 
 export default function WishlistPage() {
-  const { user } = useAuth();
+  const { user, session } = useAuth();
   const [products, setProducts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!user) return;
+    if (!user || !session) return;
     const fetchWishlist = async () => {
       try {
         const headers = {
           'apikey': API_KEY,
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token || ''}`,
+          'Authorization': `Bearer ${session.access_token}`,
         };
 
         // Fetch wishlist items
@@ -52,7 +52,7 @@ export default function WishlistPage() {
       setLoading(false);
     };
     fetchWishlist();
-  }, [user]);
+  }, [user, session]);
 
   if (!user) return <Navigate to="/auth" />;
   if (loading) return <div className="container py-12"><div className="bg-muted animate-pulse h-64 rounded-lg" /></div>;

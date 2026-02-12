@@ -13,20 +13,20 @@ const SUPABASE_URL = 'https://cgboawjncqqasijhqgkv.supabase.co';
 const API_KEY = 'sb_publishable_3w5FPK8BTYy6JQIuzHcFVA_rWVwrt5_';
 
 export default function AccountPage() {
-  const { user, signOut } = useAuth();
+  const { user, session, signOut } = useAuth();
   const [profile, setProfile] = useState<any>(null);
   const [orders, setOrders] = useState<any[]>([]);
   const [addresses, setAddresses] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!user) return;
+    if (!user || !session) return;
     const fetchData = async () => {
       try {
         const headers = {
           'apikey': API_KEY,
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token || ''}`,
+          'Authorization': `Bearer ${session.access_token}`,
         };
 
         const [profileRes, ordersRes, addressRes] = await Promise.all([
@@ -50,7 +50,7 @@ export default function AccountPage() {
       setLoading(false);
     };
     fetchData();
-  }, [user]);
+  }, [user, session]);
 
   if (!user) return <Navigate to="/auth" />;
 
