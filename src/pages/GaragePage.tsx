@@ -144,29 +144,47 @@ export default function GaragePage() {
       return;
     }
     setSubmitting(true);
+    console.log('Starting addMoto...', { user_id: user?.id, moto_variant_id: variantId, nickname });
+
     try {
-      const { error } = await supabase.from('user_garage').insert({
+      const { data, error } = await supabase.from('user_garage').insert({
         user_id: user.id,
         moto_variant_id: variantId,
         nickname: nickname || null,
         is_default: garage.length === 0,
       });
+
+      console.log('Insert response:', { data, error });
+
       if (error) {
-        console.error('Add moto error:', error);
+        console.error('Supabase insert error:', error);
         toast.error(`Eroare la adăugare: ${error.message}`);
+        setSubmitting(false);
         return;
       }
+
+      console.log('Moto added successfully');
       toast.success('Motocicleta a fost adăugată!');
+
+      // Reset form
       setAdding(false);
       setMakeId('');
       setModelId('');
       setVariantId('');
       setNickname('');
-      await fetchGarage();
+
+      // Refresh the garage list without waiting too long
+      console.log('Refreshing garage...');
+      setLoading(true);
+      fetchGarage().catch(err => {
+        console.error('Garage refresh error:', err);
+        setLoading(false);
+      });
+
+      setSubmitting(false);
     } catch (err: any) {
       console.error('Add moto exception:', err);
       toast.error(`Eroare: ${err.message}`);
-    } finally {
       setSubmitting(false);
     }
   };
