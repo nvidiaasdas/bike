@@ -31,6 +31,7 @@ export default function GaragePage() {
   const [garage, setGarage] = useState<GarageItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [adding, setAdding] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [makes, setMakes] = useState<any[]>([]);
   const [models, setModels] = useState<any[]>([]);
   const [variants, setVariants] = useState<any[]>([]);
@@ -138,14 +139,36 @@ export default function GaragePage() {
   if (!user) return <Navigate to="/auth" />;
 
   const addMoto = async () => {
-    if (!variantId) return;
-    const { error } = await supabase.from('user_garage').insert({
-      user_id: user.id, moto_variant_id: variantId, nickname: nickname || null, is_default: garage.length === 0,
-    });
-    if (error) { toast.error('Eroare la adăugare'); return; }
-    toast.success('Motocicleta a fost adăugată!');
-    setAdding(false); setMakeId(''); setModelId(''); setVariantId(''); setNickname('');
-    fetchGarage();
+    if (!variantId) {
+      toast.error('Te rog selectează o variantă');
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const { error } = await supabase.from('user_garage').insert({
+        user_id: user.id,
+        moto_variant_id: variantId,
+        nickname: nickname || null,
+        is_default: garage.length === 0,
+      });
+      if (error) {
+        console.error('Add moto error:', error);
+        toast.error(`Eroare la adăugare: ${error.message}`);
+        return;
+      }
+      toast.success('Motocicleta a fost adăugată!');
+      setAdding(false);
+      setMakeId('');
+      setModelId('');
+      setVariantId('');
+      setNickname('');
+      await fetchGarage();
+    } catch (err: any) {
+      console.error('Add moto exception:', err);
+      toast.error(`Eroare: ${err.message}`);
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const setDefault = async (id: string) => {
@@ -222,8 +245,26 @@ export default function GaragePage() {
             <Input value={nickname} onChange={e => setNickname(e.target.value)} placeholder="ex: Motocicleta de vară" />
           </div>
           <div className="flex gap-2">
-            <Button onClick={addMoto} disabled={!variantId} className="bg-primary text-primary-foreground">Adaugă</Button>
-            <Button onClick={() => setAdding(false)} variant="outline">Anulează</Button>
+            <Button
+              onClick={addMoto}
+              disabled={!variantId || submitting}
+              className="bg-primary text-primary-foreground"
+            >
+              {submitting ? 'Se adaugă...' : 'Adaugă'}
+            </Button>
+            <Button
+              onClick={() => {
+                setAdding(false);
+                setMakeId('');
+                setModelId('');
+                setVariantId('');
+                setNickname('');
+              }}
+              variant="outline"
+              disabled={submitting}
+            >
+              Anulează
+            </Button>
           </div>
         </div>
       )}
