@@ -107,13 +107,30 @@ export default function CatalogPage() {
         const data = await response.json();
 
         if (data && Array.isArray(data)) {
-          setAllCategoryProducts(data);
+          // Fetch images for category products
+          let dataWithImages = data;
+          if (data.length > 0) {
+            const productIds = data.map(p => p.id);
+            try {
+              const imagesUrl = `${SUPABASE_URL}/rest/v1/product_images?product_id=in.(${productIds.join(',')})`;
+              const imagesRes = await fetch(imagesUrl, { headers });
+              const images = await imagesRes.json();
+              dataWithImages = data.map((p: any) => ({
+                ...p,
+                product_images: (images || []).filter((img: any) => img.product_id === p.id),
+              }));
+            } catch (err) {
+              console.error('Category images error:', err);
+            }
+          }
+
+          setAllCategoryProducts(dataWithImages);
 
           // Extract all available capacities and viscosities from all category products
           const extractedCapacities = new Set<string>();
           const extractedViscosities = new Set<string>();
 
-          data.forEach((product: any) => {
+          dataWithImages.forEach((product: any) => {
             const capacity = extractCapacity(product.name);
             const viscosity = extractViscosity(product.name);
 
@@ -129,6 +146,7 @@ export default function CatalogPage() {
 
           const viscositiesArray = Array.from(extractedViscosities).sort();
 
+          console.log('Capacities:', capacitiesArray, 'Viscosities:', viscositiesArray);
           setCapacities(capacitiesArray);
           setViscosities(viscositiesArray);
         }
@@ -204,6 +222,24 @@ export default function CatalogPage() {
           }
         } catch (err) {
           console.error('Compatibility filter error:', err);
+        }
+      }
+
+      // Fetch images for all products
+      if (results && results.length > 0) {
+        const productIds = results.map(p => p.id);
+        try {
+          const imagesUrl = `${SUPABASE_URL}/rest/v1/product_images?product_id=in.(${productIds.join(',')})&order=sort_order.asc`;
+          const imagesResponse = await fetch(imagesUrl, { headers });
+          const images = await imagesResponse.json();
+
+          // Attach images to products
+          results = results.map((product: any) => ({
+            ...product,
+            product_images: (images || []).filter((img: any) => img.product_id === product.id),
+          }));
+        } catch (err) {
+          console.error('Images fetch error:', err);
         }
       }
 
