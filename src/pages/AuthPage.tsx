@@ -62,7 +62,9 @@ export default function AuthPage() {
       if (error) {
         toast.error(error.message || 'Eroare la înregistrare');
       } else {
-        toast.success('Cont creat! Verifică-ți emailul pentru confirmare.');
+        toast.success('Cont creat cu succes! Te-ai conectat automat.');
+        const from = (location.state as any)?.from?.pathname || '/';
+        navigate(from);
       }
     }
     setLoading(false);
