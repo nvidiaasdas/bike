@@ -147,18 +147,37 @@ export default function GaragePage() {
     console.log('Starting addMoto...', { user_id: user?.id, moto_variant_id: variantId, nickname });
 
     try {
-      const { data, error } = await supabase.from('user_garage').insert({
-        user_id: user.id,
-        moto_variant_id: variantId,
-        nickname: nickname || null,
-        is_default: garage.length === 0,
+      if (!session) {
+        console.error('No session available');
+        toast.error('Eroare: Sesiune expirată');
+        setSubmitting(false);
+        return;
+      }
+
+      // Use REST API directly for more reliable insert
+      const insertRes = await fetch(`${SUPABASE_URL}/rest/v1/user_garage`, {
+        method: 'POST',
+        headers: {
+          'apikey': API_KEY,
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          user_id: user.id,
+          moto_variant_id: variantId,
+          nickname: nickname || null,
+          is_default: garage.length === 0,
+        }),
       });
 
-      console.log('Insert response:', { data, error });
+      console.log('Insert response status:', insertRes.status);
+      const insertData = await insertRes.json();
+      console.log('Insert response:', insertData);
 
-      if (error) {
-        console.error('Supabase insert error:', error);
-        toast.error(`Eroare la adăugare: ${error.message}`);
+      if (!insertRes.ok) {
+        const errorMsg = insertData.message || insertData.error_description || 'Unknown error';
+        console.error('REST API insert error:', errorMsg);
+        toast.error(`Eroare la adăugare: ${errorMsg}`);
         setSubmitting(false);
         return;
       }
@@ -173,7 +192,7 @@ export default function GaragePage() {
       setVariantId('');
       setNickname('');
 
-      // Refresh the garage list without waiting too long
+      // Refresh the garage list
       console.log('Refreshing garage...');
       setLoading(true);
       fetchGarage().catch(err => {
