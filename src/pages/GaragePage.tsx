@@ -27,7 +27,7 @@ function GarageBadge({ children, className = '' }: { children: React.ReactNode; 
 }
 
 export default function GaragePage() {
-  const { user } = useAuth();
+  const { user, session } = useAuth();
   const [garage, setGarage] = useState<GarageItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [adding, setAdding] = useState(false);
@@ -73,11 +73,11 @@ export default function GaragePage() {
   }, [modelId]);
 
   const fetchGarage = async () => {
-    if (!user) return;
+    if (!user || !session) return;
     try {
       const authHeaders = {
         ...headers,
-        'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token || ''}`,
+        'Authorization': `Bearer ${session.access_token}`,
       };
       
       const response = await fetch(`${SUPABASE_URL}/rest/v1/user_garage?user_id=eq.${user.id}&order=created_at.asc`, { headers: authHeaders });
@@ -133,7 +133,7 @@ export default function GaragePage() {
     setLoading(false);
   };
 
-  useEffect(() => { fetchGarage(); }, [user]);
+  useEffect(() => { fetchGarage(); }, [user, session]);
 
   if (!user) return <Navigate to="/auth" />;
 
