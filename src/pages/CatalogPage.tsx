@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { supabase } from '@/integrations/supabase/client';
 import ProductCard from '@/components/ProductCard';
 import MotoSelector from '@/components/MotoSelector';
 import { useMoto } from '@/contexts/MotoContext';
@@ -9,6 +8,14 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Search, SlidersHorizontal, X } from 'lucide-react';
+
+const SUPABASE_URL = 'https://cgboawjncqqasijhqgkv.supabase.co';
+const API_KEY = 'sb_publishable_3w5FPK8BTYy6JQIuzHcFVA_rWVwrt5_';
+
+const headers = {
+  'apikey': API_KEY,
+  'Content-Type': 'application/json',
+};
 
 // Extract viscosity from product name (e.g., "10W40", "5W-30", "0W20")
 const extractViscosity = (name: string): string | null => {
@@ -57,12 +64,23 @@ export default function CatalogPage() {
   const showAll = searchParams.get('all') === '1';
 
   useEffect(() => {
-    supabase.from('categories').select('id, name, slug, parent_id').order('sort_order').then(({ data }) => {
-      if (data) setCategories(data);
-    });
-    supabase.from('brands').select('id, name, slug').order('name').then(({ data }) => {
-      if (data) setBrands(data);
-    });
+    // Fetch categories via REST API
+    fetch(`${SUPABASE_URL}/rest/v1/categories?order=sort_order.asc`, { headers })
+      .then(r => r.json())
+      .then(data => {
+        console.log('Categories:', data);
+        setCategories(data || []);
+      })
+      .catch(err => console.error('Categories error:', err));
+
+    // Fetch brands via REST API
+    fetch(`${SUPABASE_URL}/rest/v1/brands?order=name.asc`, { headers })
+      .then(r => r.json())
+      .then(data => {
+        console.log('Brands:', data);
+        setBrands(data || []);
+      })
+      .catch(err => console.error('Brands error:', err));
   }, []);
 
   // Fetch all products in the selected category (unfiltered) to extract available options
@@ -81,38 +99,41 @@ export default function CatalogPage() {
       const childIds = categories.filter(c => c.parent_id === cat.id).map(c => c.id);
       const categoryIds = [cat.id, ...childIds];
 
-      const { data } = await supabase
-        .from('products')
-        .select('id, name, slug, price, stock_qty, is_oem, condition, category_id, brands(name), product_images(url)')
-        .eq('is_active', true)
-        .in('category_id', categoryIds)
-        .limit(100);
+      try {
+        // Fetch products for this category
+        const categoryFilter = categoryIds.map(id => `category_id=eq.${id}`).join(',');
+        const url = `${SUPABASE_URL}/rest/v1/products?and=(is_active=eq.true,or=(${categoryFilter}))&limit=100`;
+        const response = await fetch(url, { headers });
+        const data = await response.json();
 
-      if (data) {
-        setAllCategoryProducts(data as any[]);
+        if (data && Array.isArray(data)) {
+          setAllCategoryProducts(data);
 
-        // Extract all available capacities and viscosities from all category products
-        const extractedCapacities = new Set<string>();
-        const extractedViscosities = new Set<string>();
+          // Extract all available capacities and viscosities from all category products
+          const extractedCapacities = new Set<string>();
+          const extractedViscosities = new Set<string>();
 
-        data.forEach((product: any) => {
-          const capacity = extractCapacity(product.name);
-          const viscosity = extractViscosity(product.name);
+          data.forEach((product: any) => {
+            const capacity = extractCapacity(product.name);
+            const viscosity = extractViscosity(product.name);
 
-          if (capacity) extractedCapacities.add(capacity);
-          if (viscosity) extractedViscosities.add(viscosity);
-        });
+            if (capacity) extractedCapacities.add(capacity);
+            if (viscosity) extractedViscosities.add(viscosity);
+          });
 
-        const capacitiesArray = Array.from(extractedCapacities).sort((a, b) => {
-          const numA = parseInt(a);
-          const numB = parseInt(b);
-          return numA - numB;
-        });
+          const capacitiesArray = Array.from(extractedCapacities).sort((a, b) => {
+            const numA = parseInt(a);
+            const numB = parseInt(b);
+            return numA - numB;
+          });
 
-        const viscositiesArray = Array.from(extractedViscosities).sort();
+          const viscositiesArray = Array.from(extractedViscosities).sort();
 
-        setCapacities(capacitiesArray);
-        setViscosities(viscositiesArray);
+          setCapacities(capacitiesArray);
+          setViscosities(viscositiesArray);
+        }
+      } catch (err) {
+        console.error('Category products fetch error:', err);
       }
     };
 
@@ -125,68 +146,72 @@ export default function CatalogPage() {
 
   const fetchProducts = async () => {
     setLoading(true);
-    let query = supabase
-      .from('products')
-      .select('id, name, slug, price, stock_qty, is_oem, condition, category_id, brands(name), product_images(url)')
-      .eq('is_active', true);
+    try {
+      let url = `${SUPABASE_URL}/rest/v1/products?is_active=eq.true`;
 
-    // Category filter
-    if (qCategory) {
-      const cat = categories.find(c => c.slug === qCategory);
-      if (cat) {
-        const childIds = categories.filter(c => c.parent_id === cat.id).map(c => c.id);
-        query = query.in('category_id', [cat.id, ...childIds]);
+      // Category filter
+      if (qCategory) {
+        const cat = categories.find(c => c.slug === qCategory);
+        if (cat) {
+          const childIds = categories.filter(c => c.parent_id === cat.id).map(c => c.id);
+          const categoryIds = [cat.id, ...childIds];
+          const categoryFilter = categoryIds.map(id => `category_id=eq.${id}`).join(',');
+          url += `&or=(${categoryFilter})`;
+        }
       }
-    }
 
-    // Brand filter
-    if (qBrand) {
-      const brand = brands.find(b => b.slug === qBrand);
-      if (brand) query = query.eq('brand_id', brand.id);
-    }
-
-    // Search
-    if (qSearch) {
-      query = query.textSearch('search_vector', qSearch, { type: 'websearch' });
-    }
-
-    // Sorting
-    if (qSort === 'price_asc') query = query.order('price', { ascending: true });
-    else if (qSort === 'price_desc') query = query.order('price', { ascending: false });
-    else query = query.order('created_at', { ascending: false });
-
-    const { data } = await query.limit(50);
-
-    let results = (data || []) as any[];
-
-    // Filter by capacity and viscosity extracted from product names
-    if (qCapacity || qViscosity) {
-      results = results.filter(product => {
-        const capacity = extractCapacity(product.name);
-        const viscosity = extractViscosity(product.name);
-
-        if (qCapacity && capacity !== qCapacity) return false;
-        if (qViscosity && viscosity !== qViscosity) return false;
-        return true;
-      });
-    }
-
-    // Filter by moto compatibility if selected
-    if (selected?.variantId && !showAll) {
-      const { data: compat } = await supabase
-        .from('compatibilities')
-        .select('product_id')
-        .eq('moto_variant_id', selected.variantId);
-
-      if (compat && compat.length > 0) {
-        const compatIds = new Set(compat.map(c => c.product_id));
-        results = results.filter(p => compatIds.has(p.id));
+      // Brand filter
+      if (qBrand) {
+        const brand = brands.find(b => b.slug === qBrand);
+        if (brand) {
+          url += `&brand_id=eq.${brand.id}`;
+        }
       }
-      // If no compatibility data exists, show all products anyway
-      // (compatibility data might not be set up for all categories)
-    }
 
-    setProducts(results);
+      // Sorting
+      if (qSort === 'price_asc') url += '&order=price.asc';
+      else if (qSort === 'price_desc') url += '&order=price.desc';
+      else url += '&order=created_at.desc';
+
+      url += '&limit=50';
+
+      const response = await fetch(url, { headers });
+      let results = await response.json();
+      results = results || [];
+
+      // Filter by capacity and viscosity extracted from product names
+      if (qCapacity || qViscosity) {
+        results = results.filter((product: any) => {
+          const capacity = extractCapacity(product.name);
+          const viscosity = extractViscosity(product.name);
+
+          if (qCapacity && capacity !== qCapacity) return false;
+          if (qViscosity && viscosity !== qViscosity) return false;
+          return true;
+        });
+      }
+
+      // Filter by moto compatibility if selected
+      if (selected?.variantId && !showAll) {
+        try {
+          const compatUrl = `${SUPABASE_URL}/rest/v1/compatibilities?moto_variant_id=eq.${selected.variantId}`;
+          const compatResponse = await fetch(compatUrl, { headers });
+          const compat = await compatResponse.json();
+
+          if (compat && compat.length > 0) {
+            const compatIds = new Set(compat.map((c: any) => c.product_id));
+            results = results.filter((p: any) => compatIds.has(p.id));
+          }
+        } catch (err) {
+          console.error('Compatibility filter error:', err);
+        }
+      }
+
+      setProducts(results);
+    } catch (err) {
+      console.error('Products fetch error:', err);
+      setProducts([]);
+    }
     setLoading(false);
   };
 

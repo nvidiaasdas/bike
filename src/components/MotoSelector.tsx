@@ -1,9 +1,16 @@
 import { useEffect, useState } from 'react';
-import { supabase } from '@/integrations/supabase/client';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { useMoto } from '@/contexts/MotoContext';
 import { Bike, Search } from 'lucide-react';
+
+const SUPABASE_URL = 'https://cgboawjncqqasijhqgkv.supabase.co';
+const API_KEY = 'sb_publishable_3w5FPK8BTYy6JQIuzHcFVA_rWVwrt5_';
+
+const headers = {
+  'apikey': API_KEY,
+  'Content-Type': 'application/json',
+};
 
 interface Make { id: string; name: string; slug: string }
 interface Model { id: string; name: string; slug: string }
@@ -25,25 +32,52 @@ export default function MotoSelector({ onSelected, compact }: Props) {
   const [variantId, setVariantId] = useState('');
 
   useEffect(() => {
-    supabase.from('moto_makes').select('id, name, slug').order('name').then(({ data }) => {
-      if (data) setMakes(data);
-    });
+    // Fetch makes via REST API
+    fetch(`${SUPABASE_URL}/rest/v1/moto_makes?order=name.asc`, { headers })
+      .then(r => r.json())
+      .then(data => {
+        console.log('Makes:', data);
+        setMakes(data || []);
+      })
+      .catch(err => console.error('Makes error:', err));
   }, []);
 
   useEffect(() => {
-    if (!makeId) { setModels([]); setModelId(''); return; }
-    supabase.from('moto_models').select('id, name, slug').eq('make_id', makeId).order('name').then(({ data }) => {
-      if (data) setModels(data);
-    });
+    if (!makeId) { 
+      setModels([]); 
+      setModelId(''); 
+      return; 
+    }
+    
+    // Fetch models via REST API
+    fetch(`${SUPABASE_URL}/rest/v1/moto_models?make_id=eq.${makeId}&order=name.asc`, { headers })
+      .then(r => r.json())
+      .then(data => {
+        console.log('Models:', data);
+        setModels(data || []);
+      })
+      .catch(err => console.error('Models error:', err));
+    
     setModelId('');
     setVariantId('');
   }, [makeId]);
 
   useEffect(() => {
-    if (!modelId) { setVariants([]); setVariantId(''); return; }
-    supabase.from('moto_variants').select('id, year_from, year_to, engine, trim').eq('model_id', modelId).order('year_from').then(({ data }) => {
-      if (data) setVariants(data);
-    });
+    if (!modelId) { 
+      setVariants([]); 
+      setVariantId(''); 
+      return; 
+    }
+    
+    // Fetch variants via REST API
+    fetch(`${SUPABASE_URL}/rest/v1/moto_variants?model_id=eq.${modelId}&order=year_from.asc`, { headers })
+      .then(r => r.json())
+      .then(data => {
+        console.log('Variants:', data);
+        setVariants(data || []);
+      })
+      .catch(err => console.error('Variants error:', err));
+    
     setVariantId('');
   }, [modelId]);
 
