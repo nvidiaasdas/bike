@@ -9,6 +9,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { toast } from 'sonner';
 import { Bike, Plus, Star, Trash2 } from 'lucide-react';
 
+const SUPABASE_URL = 'https://cgboawjncqqasijhqgkv.supabase.co';
+const API_KEY = 'sb_publishable_3w5FPK8BTYy6JQIuzHcFVA_rWVwrt5_';
+
 interface GarageItem {
   id: string;
   nickname: string | null;
@@ -36,30 +39,97 @@ export default function GaragePage() {
   const [variantId, setVariantId] = useState('');
   const [nickname, setNickname] = useState('');
 
+  const headers = {
+    'apikey': API_KEY,
+    'Content-Type': 'application/json',
+  };
+
   useEffect(() => {
-    supabase.from('moto_makes').select('id, name').order('name').then(({ data }) => { if (data) setMakes(data); });
+    // Fetch makes via REST API
+    fetch(`${SUPABASE_URL}/rest/v1/moto_makes?order=name.asc`, { headers })
+      .then(r => r.json())
+      .then(data => { if (data) setMakes(data); })
+      .catch(err => console.error('Makes error:', err));
   }, []);
 
   useEffect(() => {
-    if (!makeId) return;
-    supabase.from('moto_models').select('id, name').eq('make_id', makeId).order('name').then(({ data }) => { if (data) setModels(data); });
+    if (!makeId) { setModels([]); setModelId(''); return; }
+    // Fetch models via REST API
+    fetch(`${SUPABASE_URL}/rest/v1/moto_models?make_id=eq.${makeId}&order=name.asc`, { headers })
+      .then(r => r.json())
+      .then(data => { if (data) setModels(data); })
+      .catch(err => console.error('Models error:', err));
     setModelId(''); setVariantId('');
   }, [makeId]);
 
   useEffect(() => {
-    if (!modelId) return;
-    supabase.from('moto_variants').select('id, year_from, year_to, engine, trim').eq('model_id', modelId).order('year_from').then(({ data }) => { if (data) setVariants(data); });
+    if (!modelId) { setVariants([]); setVariantId(''); return; }
+    // Fetch variants via REST API
+    fetch(`${SUPABASE_URL}/rest/v1/moto_variants?model_id=eq.${modelId}&order=year_from.asc`, { headers })
+      .then(r => r.json())
+      .then(data => { if (data) setVariants(data); })
+      .catch(err => console.error('Variants error:', err));
     setVariantId('');
   }, [modelId]);
 
   const fetchGarage = async () => {
     if (!user) return;
-    const { data } = await supabase
-      .from('user_garage')
-      .select('id, nickname, is_default, moto_variants(id, year_from, year_to, engine, trim, moto_models(name, moto_makes(name)))')
-      .eq('user_id', user.id)
-      .order('created_at');
-    if (data) setGarage(data as any);
+    try {
+      const authHeaders = {
+        ...headers,
+        'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token || ''}`,
+      };
+      
+      const response = await fetch(`${SUPABASE_URL}/rest/v1/user_garage?user_id=eq.${user.id}&order=created_at.asc`, { headers: authHeaders });
+      const garageData = await response.json();
+
+      if (garageData && Array.isArray(garageData)) {
+        // Fetch variant details for each garage item
+        const variantIds = garageData.map((g: any) => g.moto_variant_id);
+        if (variantIds.length > 0) {
+          const variantsRes = await fetch(`${SUPABASE_URL}/rest/v1/moto_variants?id=in.(${variantIds.join(',')})`, { headers });
+          const variantsData = await variantsRes.json();
+
+          // Fetch models
+          const modelIds = variantsData.map((v: any) => v.model_id);
+          const modelsRes = await fetch(`${SUPABASE_URL}/rest/v1/moto_models?id=in.(${modelIds.join(',')})`, { headers });
+          const modelsData = await modelsRes.json();
+
+          // Fetch makes
+          const makeIds = modelsData.map((m: any) => m.make_id);
+          const makesRes = await fetch(`${SUPABASE_URL}/rest/v1/moto_makes?id=in.(${makeIds.join(',')})`, { headers });
+          const makesData = await makesRes.json();
+
+          // Build garage items with full data
+          const fullGarage = garageData.map((g: any) => {
+            const variant = variantsData.find((v: any) => v.id === g.moto_variant_id);
+            const model = modelsData.find((m: any) => m.id === variant?.model_id);
+            const make = makesData.find((mk: any) => mk.id === model?.make_id);
+
+            return {
+              id: g.id,
+              nickname: g.nickname,
+              is_default: g.is_default,
+              moto_variants: {
+                id: variant?.id,
+                year_from: variant?.year_from,
+                year_to: variant?.year_to,
+                engine: variant?.engine,
+                trim: variant?.trim,
+                moto_models: {
+                  name: model?.name,
+                  moto_makes: { name: make?.name },
+                },
+              },
+            };
+          });
+
+          setGarage(fullGarage as any);
+        }
+      }
+    } catch (err) {
+      console.error('Garage fetch error:', err);
+    }
     setLoading(false);
   };
 
@@ -81,82 +151,80 @@ export default function GaragePage() {
   const setDefault = async (id: string) => {
     await supabase.from('user_garage').update({ is_default: false }).eq('user_id', user.id);
     await supabase.from('user_garage').update({ is_default: true }).eq('id', id);
-    toast.success('Motocicleta implicită actualizată'); fetchGarage();
+    toast.success('Motocicleta implicită a fost actualizată!');
+    fetchGarage();
   };
 
-  const removeMoto = async (id: string) => {
+  const deleteMoto = async (id: string) => {
     await supabase.from('user_garage').delete().eq('id', id);
-    toast.success('Motocicleta a fost eliminată'); fetchGarage();
+    toast.success('Motocicleta a fost eliminată!');
+    fetchGarage();
   };
+
+  if (loading) return <div className="container py-12"><div className="bg-muted animate-pulse h-96 rounded-lg" /></div>;
 
   return (
-    <div className="container py-8 max-w-2xl">
-      <div className="flex items-center justify-between mb-8">
-        <h1 className="font-heading text-3xl font-bold flex items-center gap-2">
-          <Bike className="w-8 h-8 text-primary" /> Garajul Meu
-        </h1>
-        <Button onClick={() => setAdding(!adding)} className="bg-primary text-primary-foreground">
-          <Plus className="w-4 h-4 mr-2" /> Adaugă
-        </Button>
-      </div>
+    <div className="container py-8">
+      <h1 className="font-heading text-3xl font-bold mb-8 flex items-center gap-2">
+        <Bike className="w-8 h-8 text-primary" /> Garajul Meu
+      </h1>
 
-      {adding && (
-        <div className="bg-card rounded-lg border border-border p-6 mb-6 animate-fade-in">
-          <h3 className="font-heading font-bold mb-4">Adaugă motocicleta</h3>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <Select value={makeId} onValueChange={setMakeId}>
-              <SelectTrigger><SelectValue placeholder="Producător" /></SelectTrigger>
-              <SelectContent>{makes.map(m => <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>)}</SelectContent>
-            </Select>
-            <Select value={modelId} onValueChange={setModelId} disabled={!makeId}>
-              <SelectTrigger><SelectValue placeholder="Model" /></SelectTrigger>
-              <SelectContent>{models.map(m => <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>)}</SelectContent>
-            </Select>
-            <Select value={variantId} onValueChange={setVariantId} disabled={!modelId}>
-              <SelectTrigger><SelectValue placeholder="Motor / An" /></SelectTrigger>
-              <SelectContent>{variants.map(v => <SelectItem key={v.id} value={v.id}>{v.year_from}-{v.year_to || '...'} {v.engine}</SelectItem>)}</SelectContent>
-            </Select>
-            <Input value={nickname} onChange={e => setNickname(e.target.value)} placeholder="Poreclă (opțional)" />
-          </div>
-          <Button onClick={addMoto} disabled={!variantId} className="mt-4 bg-primary text-primary-foreground">Salvează</Button>
+      {garage.length > 0 && (
+        <div className="mb-8 space-y-3">
+          {garage.map((item) => (
+            <div key={item.id} className="bg-card rounded-lg border border-border p-4 flex items-center justify-between">
+              <div>
+                <p className="font-heading font-bold">{item.moto_variants.moto_models.moto_makes.name} {item.moto_variants.moto_models.name}</p>
+                <p className="text-sm text-muted-foreground">
+                  {item.moto_variants.year_from}-{item.moto_variants.year_to || 'prezent'} • {item.moto_variants.engine} • {item.moto_variants.trim}
+                </p>
+                {item.nickname && <p className="text-sm text-muted-foreground italic mt-1">{item.nickname}</p>}
+              </div>
+              <div className="flex items-center gap-2">
+                {item.is_default && <GarageBadge className="bg-success/20 text-success">● Implicita</GarageBadge>}
+                {!item.is_default && <Button variant="ghost" size="sm" onClick={() => setDefault(item.id)}><Star className="w-4 h-4 mr-1" />Alege</Button>}
+                <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive" onClick={() => deleteMoto(item.id)}><Trash2 className="w-4 h-4" /></Button>
+              </div>
+            </div>
+          ))}
         </div>
       )}
 
-      {loading ? (
-        <div className="space-y-4">{[1,2].map(i => <div key={i} className="bg-muted animate-pulse h-24 rounded-lg" />)}</div>
-      ) : garage.length === 0 ? (
-        <div className="text-center py-16">
-          <Bike className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
-          <p className="text-muted-foreground">Nu ai nicio motocicletă în garaj. Adaugă una!</p>
-        </div>
+      {!adding ? (
+        <Button onClick={() => setAdding(true)} className="bg-primary text-primary-foreground"><Plus className="w-4 h-4 mr-2" />Adaugă motocicleta</Button>
       ) : (
-        <div className="space-y-4">
-          {garage.map(g => {
-            const v = g.moto_variants;
-            return (
-              <div key={g.id} className={`flex items-center gap-4 p-4 rounded-lg border ${g.is_default ? 'border-primary bg-accent' : 'border-border bg-card'}`}>
-                <Bike className={`w-8 h-8 ${g.is_default ? 'text-primary' : 'text-muted-foreground'}`} />
-                <div className="flex-1">
-                  <div className="font-heading font-bold">{v.moto_models.moto_makes.name} {v.moto_models.name}</div>
-                  <div className="text-sm text-muted-foreground">
-                    {v.year_from}-{v.year_to || 'prezent'} • {v.engine} {v.trim}
-                    {g.nickname && ` • "${g.nickname}"`}
-                  </div>
-                </div>
-                <div className="flex gap-2">
-                  {!g.is_default && (
-                    <Button variant="outline" size="sm" onClick={() => setDefault(g.id)}>
-                      <Star className="w-4 h-4 mr-1" /> Implicită
-                    </Button>
-                  )}
-                  {g.is_default && <GarageBadge className="bg-primary text-primary-foreground">Implicită</GarageBadge>}
-                  <Button variant="ghost" size="icon" className="text-destructive" onClick={() => removeMoto(g.id)}>
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
-                </div>
-              </div>
-            );
-          })}
+        <div className="bg-card rounded-lg border border-border p-6 space-y-4">
+          <div className="grid grid-cols-3 gap-3">
+            <div>
+              <Label>Producător</Label>
+              <Select value={makeId} onValueChange={setMakeId}>
+                <SelectTrigger><SelectValue placeholder="Producător" /></SelectTrigger>
+                <SelectContent>{makes.map(m => <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Model</Label>
+              <Select value={modelId} onValueChange={setModelId} disabled={!makeId}>
+                <SelectTrigger><SelectValue placeholder="Model" /></SelectTrigger>
+                <SelectContent>{models.map(m => <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Motor / An</Label>
+              <Select value={variantId} onValueChange={setVariantId} disabled={!modelId}>
+                <SelectTrigger><SelectValue placeholder="Motor / An" /></SelectTrigger>
+                <SelectContent>{variants.map(v => <SelectItem key={v.id} value={v.id}>{v.engine} {v.year_from}-{v.year_to || 'prezent'}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+          </div>
+          <div>
+            <Label>Porecla (opțional)</Label>
+            <Input value={nickname} onChange={e => setNickname(e.target.value)} placeholder="ex: Motocicleta de vară" />
+          </div>
+          <div className="flex gap-2">
+            <Button onClick={addMoto} disabled={!variantId} className="bg-primary text-primary-foreground">Adaugă</Button>
+            <Button onClick={() => setAdding(false)} variant="outline">Anulează</Button>
+          </div>
         </div>
       )}
     </div>

@@ -9,6 +9,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
 import { User, Package, MapPin } from 'lucide-react';
 
+const SUPABASE_URL = 'https://cgboawjncqqasijhqgkv.supabase.co';
+const API_KEY = 'sb_publishable_3w5FPK8BTYy6JQIuzHcFVA_rWVwrt5_';
+
 export default function AccountPage() {
   const { user, signOut } = useAuth();
   const [profile, setProfile] = useState<any>(null);
@@ -19,14 +22,31 @@ export default function AccountPage() {
   useEffect(() => {
     if (!user) return;
     const fetchData = async () => {
-      const [profileRes, ordersRes, addressRes] = await Promise.all([
-        supabase.from('user_profiles').select('*').eq('user_id', user.id).single(),
-        supabase.from('orders').select('id, status, total, created_at').eq('user_id', user.id).order('created_at', { ascending: false }),
-        supabase.from('addresses').select('*').eq('user_id', user.id).order('is_default', { ascending: false }),
-      ]);
-      if (profileRes.data) setProfile(profileRes.data);
-      if (ordersRes.data) setOrders(ordersRes.data);
-      if (addressRes.data) setAddresses(addressRes.data);
+      try {
+        const headers = {
+          'apikey': API_KEY,
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token || ''}`,
+        };
+
+        const [profileRes, ordersRes, addressRes] = await Promise.all([
+          fetch(`${SUPABASE_URL}/rest/v1/user_profiles?user_id=eq.${user.id}`, { headers }),
+          fetch(`${SUPABASE_URL}/rest/v1/orders?user_id=eq.${user.id}&order=created_at.desc`, { headers }),
+          fetch(`${SUPABASE_URL}/rest/v1/addresses?user_id=eq.${user.id}&order=is_default.desc`, { headers }),
+        ]);
+
+        const profileData = await profileRes.json();
+        const ordersData = await ordersRes.json();
+        const addressData = await addressRes.json();
+
+        console.log('Profile:', profileData, 'Orders:', ordersData, 'Addresses:', addressData);
+
+        if (profileData && profileData.length > 0) setProfile(profileData[0]);
+        if (ordersData && Array.isArray(ordersData)) setOrders(ordersData);
+        if (addressData && Array.isArray(addressData)) setAddresses(addressData);
+      } catch (err) {
+        console.error('Account data fetch error:', err);
+      }
       setLoading(false);
     };
     fetchData();
