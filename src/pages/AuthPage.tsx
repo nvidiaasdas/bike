@@ -84,17 +84,19 @@ export default function AuthPage() {
       <div className="flex-1 flex items-center justify-center py-12">
       <div className="w-full max-w-md mx-auto px-4">
         <div className="bg-card rounded-lg border border-border p-8 shadow-sm">
-          <Link to="/" className="inline-flex items-center justify-center gap-2 bg-orange-500 text-white px-4 py-2 rounded-lg hover:bg-orange-600 transition-colors duration-200 mb-4 w-fit">
-            <ArrowLeft className="w-4 h-4" />
-            <span className="text-sm font-medium">Acasă</span>
-          </Link>
-          <div className="flex items-center justify-center gap-2 mb-6">
-            <div className="w-10 h-10 bg-primary rounded-sm flex items-center justify-center">
-              <Bike className="w-6 h-6 text-primary-foreground" />
+          <div className="flex items-center justify-between gap-4 mb-6">
+            <Link to="/" className="inline-flex items-center justify-center gap-2 bg-orange-500 text-white px-4 py-2 rounded-lg hover:bg-orange-600 transition-colors duration-200 w-fit">
+              <ArrowLeft className="w-4 h-4" />
+              <span className="text-sm font-medium">Acasă</span>
+            </Link>
+            <div className="flex items-center justify-center gap-2">
+              <div className="w-10 h-10 bg-primary rounded-sm flex items-center justify-center">
+                <Bike className="w-6 h-6 text-primary-foreground" />
+              </div>
+              <span className="font-heading text-2xl font-bold">
+                MOTO<span className="text-primary">PARTS</span>
+              </span>
             </div>
-            <span className="font-heading text-2xl font-bold">
-              MOTO<span className="text-primary">PARTS</span>
-            </span>
           </div>
 
           <h1 className="font-heading text-2xl font-bold text-center mb-6">
