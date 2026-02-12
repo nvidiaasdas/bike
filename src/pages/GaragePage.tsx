@@ -171,11 +171,32 @@ export default function GaragePage() {
       });
 
       console.log('Insert response status:', insertRes.status);
-      const insertData = await insertRes.json();
-      console.log('Insert response:', insertData);
+
+      // Handle response - Supabase might return empty response on success
+      let insertData: any = null;
+      const contentType = insertRes.headers.get('content-type');
+
+      if (contentType && contentType.includes('application/json')) {
+        try {
+          insertData = await insertRes.json();
+        } catch (parseErr) {
+          console.error('JSON parse error:', parseErr);
+          // If we can't parse JSON but status is ok, consider it success
+          if (insertRes.ok) {
+            insertData = { success: true };
+          }
+        }
+      } else {
+        console.log('Non-JSON response received');
+        if (insertRes.ok) {
+          insertData = { success: true };
+        }
+      }
+
+      console.log('Insert response:', { status: insertRes.status, ok: insertRes.ok, data: insertData });
 
       if (!insertRes.ok) {
-        const errorMsg = insertData.message || insertData.error_description || 'Unknown error';
+        const errorMsg = insertData?.message || insertData?.error_description || `HTTP ${insertRes.status}`;
         console.error('REST API insert error:', errorMsg);
         toast.error(`Eroare la adăugare: ${errorMsg}`);
         setSubmitting(false);
@@ -209,16 +230,71 @@ export default function GaragePage() {
   };
 
   const setDefault = async (id: string) => {
-    await supabase.from('user_garage').update({ is_default: false }).eq('user_id', user.id);
-    await supabase.from('user_garage').update({ is_default: true }).eq('id', id);
-    toast.success('Motocicleta implicită a fost actualizată!');
-    fetchGarage();
+    if (!session) return;
+    try {
+      const authHeaders = {
+        'apikey': API_KEY,
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session.access_token}`,
+      };
+
+      // First unset all defaults for this user
+      const unsetRes = await fetch(`${SUPABASE_URL}/rest/v1/user_garage?user_id=eq.${user.id}`, {
+        method: 'PATCH',
+        headers: authHeaders,
+        body: JSON.stringify({ is_default: false }),
+      });
+
+      if (!unsetRes.ok) {
+        toast.error('Eroare la actualizare');
+        return;
+      }
+
+      // Then set this one as default
+      const setRes = await fetch(`${SUPABASE_URL}/rest/v1/user_garage?id=eq.${id}`, {
+        method: 'PATCH',
+        headers: authHeaders,
+        body: JSON.stringify({ is_default: true }),
+      });
+
+      if (!setRes.ok) {
+        toast.error('Eroare la actualizare');
+        return;
+      }
+
+      toast.success('Motocicleta implicită a fost actualizată!');
+      fetchGarage();
+    } catch (err: any) {
+      console.error('Set default error:', err);
+      toast.error(`Eroare: ${err.message}`);
+    }
   };
 
   const deleteMoto = async (id: string) => {
-    await supabase.from('user_garage').delete().eq('id', id);
-    toast.success('Motocicleta a fost eliminată!');
-    fetchGarage();
+    if (!session) return;
+    try {
+      const authHeaders = {
+        'apikey': API_KEY,
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session.access_token}`,
+      };
+
+      const deleteRes = await fetch(`${SUPABASE_URL}/rest/v1/user_garage?id=eq.${id}`, {
+        method: 'DELETE',
+        headers: authHeaders,
+      });
+
+      if (!deleteRes.ok) {
+        toast.error('Eroare la ștergere');
+        return;
+      }
+
+      toast.success('Motocicleta a fost eliminată!');
+      fetchGarage();
+    } catch (err: any) {
+      console.error('Delete moto error:', err);
+      toast.error(`Eroare: ${err.message}`);
+    }
   };
 
   if (loading) return <div className="container py-12"><div className="bg-muted animate-pulse h-96 rounded-lg" /></div>;
