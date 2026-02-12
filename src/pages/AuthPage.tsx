@@ -84,8 +84,9 @@ export default function AuthPage() {
       <div className="flex-1 flex items-center justify-center py-12">
       <div className="w-full max-w-md mx-auto px-4">
         <div className="bg-card rounded-lg border border-border p-8 shadow-sm">
-          <Link to="/" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-primary mb-4">
-            <ArrowLeft className="w-4 h-4" /> Înapoi acasă
+          <Link to="/" className="inline-flex items-center justify-center gap-2 bg-orange-500 text-white px-4 py-2 rounded-lg hover:bg-orange-600 transition-colors duration-200 mb-4 w-fit">
+            <ArrowLeft className="w-4 h-4" />
+            <span className="text-sm font-medium">Acasă</span>
           </Link>
           <div className="flex items-center justify-center gap-2 mb-6">
             <div className="w-10 h-10 bg-primary rounded-sm flex items-center justify-center">
