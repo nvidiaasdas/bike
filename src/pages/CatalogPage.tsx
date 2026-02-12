@@ -195,7 +195,12 @@ export default function CatalogPage() {
 
       const response = await fetch(url, { headers });
       let results = await response.json();
-      results = results || [];
+
+      // Ensure results is an array
+      if (!Array.isArray(results)) {
+        console.error('Invalid response from products endpoint:', results);
+        results = [];
+      }
 
       // Filter by capacity and viscosity extracted from product names
       if (qCapacity || qViscosity) {
@@ -243,7 +248,8 @@ export default function CatalogPage() {
         }
       }
 
-      setProducts(results);
+      // Final safety check
+      setProducts(Array.isArray(results) ? results : []);
     } catch (err) {
       console.error('Products fetch error:', err);
       setProducts([]);
@@ -431,13 +437,13 @@ export default function CatalogPage() {
                 <div key={i} className="bg-muted rounded-lg animate-pulse aspect-[3/4]" />
               ))}
             </div>
-          ) : products.length === 0 ? (
+          ) : !Array.isArray(products) || products.length === 0 ? (
             <div className="text-center py-20">
               <p className="text-muted-foreground">Nu am găsit produse cu filtrele selectate.</p>
             </div>
           ) : (
             <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-              {products.map(p => (
+              {Array.isArray(products) && products.map(p => (
                 <ProductCard
                   key={p.id}
                   product={{
