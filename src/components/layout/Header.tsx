@@ -21,27 +21,38 @@ export default function Header() {
   const [categories, setCategories] = useState<Category[]>([]);
 
   useEffect(() => {
-    // Fetch root categories from database
+    // Fetch root categories from database using REST API
     const fetchCategories = async () => {
       try {
-        console.log('Fetching categories...');
-        const { data, error } = await supabase
-          .from('categories')
-          .select('*')
-          .is('parent_id', null)
-          .order('sort_order');
+        console.log('Fetching categories via REST API...');
 
-        if (error) {
-          console.error('❌ Categories error:', error);
+        // Use REST API directly with timeout
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 5000);
+
+        const response = await fetch(
+          'https://cgboawjncqqasijhqgkv.supabase.co/rest/v1/categories?parent_id=is.null&order=sort_order.asc',
+          {
+            headers: {
+              'apikey': 'sb_publishable_3w5FPK8BTYy6JQIuzHcFVA_rWVwrt5_',
+              'Content-Type': 'application/json',
+            },
+            signal: controller.signal,
+          }
+        );
+
+        clearTimeout(timeoutId);
+
+        if (!response.ok) {
+          console.error('❌ REST API error:', response.status, response.statusText);
           return;
         }
 
-        console.log('✅ Categories fetched:', data?.length || 0);
-        if (data) {
-          setCategories(data);
-        }
-      } catch (err) {
-        console.error('❌ Categories exception:', err);
+        const data = await response.json();
+        console.log('✅ Categories fetched:', data?.length || 0, data);
+        setCategories(data || []);
+      } catch (err: any) {
+        console.error('❌ Categories fetch error:', err.message);
       }
     };
 
