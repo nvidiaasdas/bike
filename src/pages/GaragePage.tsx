@@ -1,13 +1,14 @@
 import { useEffect, useState } from 'react';
-import { Navigate } from 'react-router-dom';
+import { Navigate, Link } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { useMoto } from '@/contexts/MotoContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
-import { Bike, Plus, Star, Trash2 } from 'lucide-react';
+import { Bike, Plus, Star, Trash2, Package } from 'lucide-react';
 
 const SUPABASE_URL = 'https://cgboawjncqqasijhqgkv.supabase.co';
 const API_KEY = 'sb_publishable_3w5FPK8BTYy6JQIuzHcFVA_rWVwrt5_';
@@ -28,6 +29,7 @@ function GarageBadge({ children, className = '' }: { children: React.ReactNode; 
 
 export default function GaragePage() {
   const { user, session } = useAuth();
+  const { setSelected } = useMoto();
   const [garage, setGarage] = useState<GarageItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [adding, setAdding] = useState(false);
@@ -307,22 +309,46 @@ export default function GaragePage() {
 
       {garage.length > 0 && (
         <div className="mb-8 space-y-3">
-          {garage.map((item) => (
-            <div key={item.id} className="bg-card rounded-lg border border-border p-4 flex items-center justify-between">
-              <div>
-                <p className="font-heading font-bold">{item.moto_variants.moto_models.moto_makes.name} {item.moto_variants.moto_models.name}</p>
-                <p className="text-sm text-muted-foreground">
-                  {item.moto_variants.year_from}-{item.moto_variants.year_to || 'prezent'} • {item.moto_variants.engine} • {item.moto_variants.trim}
-                </p>
-                {item.nickname && <p className="text-sm text-muted-foreground italic mt-1">{item.nickname}</p>}
+          {garage.map((item) => {
+            const makeName = item.moto_variants.moto_models.moto_makes.name;
+            const modelName = item.moto_variants.moto_models.name;
+            const variantLabel = `${item.moto_variants.year_from}${item.moto_variants.year_to ? `-${item.moto_variants.year_to}` : ''} ${item.moto_variants.engine || ''} ${item.moto_variants.trim || ''}`.trim();
+
+            return (
+              <div key={item.id} className="bg-card rounded-lg border border-border p-4 flex items-center justify-between">
+                <div>
+                  <p className="font-heading font-bold">{makeName} {modelName}</p>
+                  <p className="text-sm text-muted-foreground">
+                    {item.moto_variants.year_from}-{item.moto_variants.year_to || 'prezent'} • {item.moto_variants.engine} • {item.moto_variants.trim}
+                  </p>
+                  {item.nickname && <p className="text-sm text-muted-foreground italic mt-1">{item.nickname}</p>}
+                </div>
+                <div className="flex items-center gap-2">
+                  <Link
+                    to="/catalog"
+                    onClick={() => {
+                      setSelected({
+                        makeId: String(item.moto_variants.moto_models.moto_makes.id),
+                        makeName,
+                        modelId: String(item.moto_variants.moto_models.id),
+                        modelName,
+                        variantId: String(item.moto_variants.id),
+                        variantLabel,
+                      });
+                    }}
+                  >
+                    <Button variant="default" size="sm" className="bg-primary text-primary-foreground">
+                      <Package className="w-4 h-4 mr-1" />
+                      Piese
+                    </Button>
+                  </Link>
+                  {item.is_default && <GarageBadge className="bg-success/20 text-success">● Implicita</GarageBadge>}
+                  {!item.is_default && <Button variant="ghost" size="sm" onClick={() => setDefault(item.id)}><Star className="w-4 h-4 mr-1" />Alege</Button>}
+                  <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive" onClick={() => deleteMoto(item.id)}><Trash2 className="w-4 h-4" /></Button>
+                </div>
               </div>
-              <div className="flex items-center gap-2">
-                {item.is_default && <GarageBadge className="bg-success/20 text-success">● Implicita</GarageBadge>}
-                {!item.is_default && <Button variant="ghost" size="sm" onClick={() => setDefault(item.id)}><Star className="w-4 h-4 mr-1" />Alege</Button>}
-                <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive" onClick={() => deleteMoto(item.id)}><Trash2 className="w-4 h-4" /></Button>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
