@@ -22,7 +22,11 @@ export default function Header() {
 
   useEffect(() => {
     // Fetch root categories from database
-    supabase.from('categories').select('id, name, slug, parent_id').order('sort_order').then(({ data }) => {
+    supabase.from('categories').select('id, name, slug, parent_id').order('sort_order').then(({ data, error }) => {
+      if (error) {
+        console.error('Error fetching categories:', error);
+        return;
+      }
       if (data) {
         // Filter for root categories (no parent_id)
         const rootCats = data.filter(c => !c.parent_id);
