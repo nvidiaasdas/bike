@@ -86,10 +86,10 @@ export default function ProductPage() {
     );
   }
 
-  const images = product.product_images?.sort((a: any, b: any) => a.sort_order - b.sort_order) || [];
+  const images = product.product_images?.sort((a: any, b: any) => (a.sort_order || 0) - (b.sort_order || 0)) || [];
   const mainImage = images[selectedImage]?.url || '/placeholder.svg';
   const inStock = product.stock_qty > 0;
-  const weight = product.product_attributes?.find((attr: any) => attr.key.toLowerCase() === 'greutate')?.value;
+  const weight = product.product_attributes?.find((attr: any) => attr.key?.toLowerCase() === 'greutate')?.value;
 
   return (
     <div className="container py-8">

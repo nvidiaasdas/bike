@@ -110,42 +110,29 @@ export function CartProvider({ children }: { children: ReactNode }) {
       
       const { data: cartItems } = await supabase
         .from('cart_items')
-        .select(`id, product_id, qty, price_snapshot, products(name, slug, sku, stock_qty, product_images(url))`)
+        .select(`id, product_id, qty, price_snapshot, products(name, slug, sku, stock_qty, product_images(url), product_attributes(key, value))`)
         .eq('cart_id', cart.id);
 
       if (cartItems) {
-        // Fetch weight attributes separately
-        const productIds = cartItems.map((ci: any) => ci.product_id);
-        let weights: { [key: string]: number } = {};
+        setItems(cartItems.map((ci: any) => {
+          const weightAttr = ci.products?.product_attributes?.find((attr: any) => attr.key?.toLowerCase() === 'greutate');
+          const weight = weightAttr ? parseFloat(weightAttr.value) : 0;
 
-        if (productIds.length > 0) {
-          const { data: attrs } = await supabase
-            .from('product_attributes')
-            .select('product_id, key, value')
-            .in('product_id', productIds)
-            .eq('key', 'greutate');
-
-          if (attrs) {
-            attrs.forEach((attr: any) => {
-              weights[attr.product_id] = parseFloat(attr.value) || 0;
-            });
-          }
-        }
-
-        setItems(cartItems.map((ci: any) => ({
-          id: ci.id,
-          product_id: ci.product_id,
-          qty: ci.qty,
-          price_snapshot: ci.price_snapshot,
-          weight_snapshot: weights[ci.product_id] || 0,
-          product: ci.products ? {
-            name: ci.products.name,
-            slug: ci.products.slug,
-            sku: ci.products.sku,
-            stock_qty: ci.products.stock_qty,
-            images: ci.products.product_images || [],
-          } : undefined,
-        })));
+          return {
+            id: ci.id,
+            product_id: ci.product_id,
+            qty: ci.qty,
+            price_snapshot: ci.price_snapshot,
+            weight_snapshot: weight,
+            product: ci.products ? {
+              name: ci.products.name,
+              slug: ci.products.slug,
+              sku: ci.products.sku,
+              stock_qty: ci.products.stock_qty,
+              images: ci.products.product_images || [],
+            } : undefined,
+          };
+        }));
       }
     } catch (e) {
       console.error('Cart refresh error:', e);

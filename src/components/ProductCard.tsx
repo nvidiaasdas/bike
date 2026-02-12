@@ -24,7 +24,7 @@ export default function ProductCard({ product }: Props) {
   const { addItem } = useCart();
   const imgUrl = product.images?.[0]?.url || '/placeholder.svg';
   const inStock = product.stock_qty > 0;
-  const weight = product.product_attributes?.find((attr) => attr.key.toLowerCase() === 'greutate')?.value || null;
+  const weight = product.product_attributes?.find((attr: any) => attr.key?.toLowerCase() === 'greutate')?.value;
 
   return (
     <div className="group bg-card rounded-lg border border-border overflow-hidden hover:shadow-lg transition-all duration-300 hover:border-primary/30 animate-fade-in">
