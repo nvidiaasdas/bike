@@ -35,12 +35,21 @@ export default function MotoSelector({ onSelected, compact }: Props) {
   // Fetch makes via REST API
   useEffect(() => {
     fetch(`${SUPABASE_URL}/rest/v1/moto_makes?order=name.asc`, { headers })
-      .then(r => r.json())
+      .then(r => {
+        if (!r.ok) {
+          console.error('Makes fetch error:', r.status);
+          throw new Error(`HTTP ${r.status}`);
+        }
+        return r.json();
+      })
       .then(data => {
         console.log('Makes:', data);
-        setMakes(data || []);
+        setMakes(Array.isArray(data) ? data : []);
       })
-      .catch(err => console.error('Makes error:', err));
+      .catch(err => {
+        console.error('Makes error:', err);
+        setMakes([]);
+      });
   }, []);
 
   // Initialize from selected context
@@ -62,12 +71,21 @@ export default function MotoSelector({ onSelected, compact }: Props) {
 
     // Fetch models via REST API
     fetch(`${SUPABASE_URL}/rest/v1/moto_models?make_id=eq.${makeId}&order=name.asc`, { headers })
-      .then(r => r.json())
+      .then(r => {
+        if (!r.ok) {
+          console.error('Models fetch error:', r.status);
+          throw new Error(`HTTP ${r.status}`);
+        }
+        return r.json();
+      })
       .then(data => {
         console.log('Models for make:', data);
-        setModels(data || []);
+        setModels(Array.isArray(data) ? data : []);
       })
-      .catch(err => console.error('Models error:', err));
+      .catch(err => {
+        console.error('Models error:', err);
+        setModels([]);
+      });
   }, [makeId]);
 
   useEffect(() => {
@@ -78,12 +96,21 @@ export default function MotoSelector({ onSelected, compact }: Props) {
 
     // Fetch variants via REST API
     fetch(`${SUPABASE_URL}/rest/v1/moto_variants?model_id=eq.${modelId}&order=year_from.asc`, { headers })
-      .then(r => r.json())
+      .then(r => {
+        if (!r.ok) {
+          console.error('Variants fetch error:', r.status);
+          throw new Error(`HTTP ${r.status}`);
+        }
+        return r.json();
+      })
       .then(data => {
         console.log('Variants for model:', data);
-        setVariants(data || []);
+        setVariants(Array.isArray(data) ? data : []);
       })
-      .catch(err => console.error('Variants error:', err));
+      .catch(err => {
+        console.error('Variants error:', err);
+        setVariants([]);
+      });
   }, [modelId]);
 
   const handleApply = () => {
@@ -147,7 +174,7 @@ export default function MotoSelector({ onSelected, compact }: Props) {
               <SelectValue placeholder="Producător" />
             </SelectTrigger>
             <SelectContent side="bottom" align="start" sideOffset={4}>
-              {makes.map(m => <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>)}
+              {Array.isArray(makes) && makes.map(m => <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>)}
             </SelectContent>
           </Select>
         </div>
@@ -159,7 +186,7 @@ export default function MotoSelector({ onSelected, compact }: Props) {
               <SelectValue placeholder="Model" />
             </SelectTrigger>
             <SelectContent side="bottom" align="start" sideOffset={4}>
-              {models.map(m => <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>)}
+              {Array.isArray(models) && models.map(m => <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>)}
             </SelectContent>
           </Select>
         </div>
@@ -171,7 +198,7 @@ export default function MotoSelector({ onSelected, compact }: Props) {
               <SelectValue placeholder="Motor / An" />
             </SelectTrigger>
             <SelectContent side="bottom" align="start" sideOffset={4}>
-              {variants.map(v => (
+              {Array.isArray(variants) && variants.map(v => (
                 <SelectItem key={v.id} value={v.id}>
                  {v.engine} {v.trim} {v.year_from}-{v.year_to || 'prezent'}
                 </SelectItem>
