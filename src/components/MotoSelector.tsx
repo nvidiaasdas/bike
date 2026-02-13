@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { useMoto } from '@/contexts/MotoContext';
@@ -30,7 +30,7 @@ export default function MotoSelector({ onSelected, compact }: Props) {
   const [makeId, setMakeId] = useState('');
   const [modelId, setModelId] = useState('');
   const [variantId, setVariantId] = useState('');
-  const [initialized, setInitialized] = useState(false);
+  const lastAppliedRef = useRef<string>('');
 
   // Fetch makes via REST API
   useEffect(() => {
@@ -52,16 +52,20 @@ export default function MotoSelector({ onSelected, compact }: Props) {
       });
   }, []);
 
-  // Initialize from selected context
+  // When selected changes from context, update local state
   useEffect(() => {
-    if (selected?.makeId && selected?.modelId && selected?.variantId && !initialized) {
-      console.log('Initializing MotoSelector from context:', selected);
-      setMakeId(String(selected.makeId));
-      setModelId(String(selected.modelId));
-      setVariantId(String(selected.variantId));
-      setInitialized(true);
+    if (selected?.makeId && selected?.modelId && selected?.variantId) {
+      const selectionKey = `${selected.makeId}-${selected.modelId}-${selected.variantId}`;
+      console.log('Selected bike from context:', selected, 'key:', selectionKey);
+
+      // Only update if this is a new selection
+      if (selectionKey !== lastAppliedRef.current) {
+        setMakeId(String(selected.makeId));
+        setModelId(String(selected.modelId));
+        setVariantId(String(selected.variantId));
+      }
     }
-  }, [selected?.makeId, selected?.modelId, selected?.variantId, initialized]);
+  }, [selected?.makeId, selected?.modelId, selected?.variantId]);
 
   useEffect(() => {
     if (!makeId || makeId === 'undefined') {
@@ -82,7 +86,8 @@ export default function MotoSelector({ onSelected, compact }: Props) {
       })
       .then(data => {
         console.log('Models for make:', data);
-        setModels(Array.isArray(data) ? data : []);
+        const modelArray = Array.isArray(data) ? data : [];
+        setModels(modelArray);
       })
       .catch(err => {
         console.error('Models error:', err);
@@ -109,13 +114,44 @@ export default function MotoSelector({ onSelected, compact }: Props) {
       })
       .then(data => {
         console.log('Variants for model:', data);
-        setVariants(Array.isArray(data) ? data : []);
+        const variantArray = Array.isArray(data) ? data : [];
+        setVariants(variantArray);
       })
       .catch(err => {
         console.error('Variants error:', err);
         setVariants([]);
       });
   }, [modelId]);
+
+  // Auto-apply when all data is loaded from context selection
+  useEffect(() => {
+    if (!makeId || !modelId || !variantId) return;
+    if (makeId === 'undefined' || modelId === 'undefined' || variantId === 'undefined') return;
+    if (makes.length === 0 || models.length === 0 || variants.length === 0) return;
+
+    const selectionKey = `${makeId}-${modelId}-${variantId}`;
+
+    // Only apply if this is a new selection from context
+    if (selectionKey !== lastAppliedRef.current) {
+      console.log('Auto-applying from context:', { makeId, modelId, variantId });
+      const make = makes.find(m => m.id === makeId);
+      const model = models.find(m => m.id === modelId);
+      const variant = variants.find(v => v.id === variantId);
+
+      if (make && model && variant) {
+        setSelected({
+          makeId: make.id,
+          makeName: make.name,
+          modelId: model.id,
+          modelName: model.name,
+          variantId: variant.id,
+          variantLabel: `${variant.year_from}-${variant.year_to || 'prezent'} ${variant.engine} ${variant.trim}`,
+        });
+        onSelected?.();
+        lastAppliedRef.current = selectionKey;
+      }
+    }
+  }, [makeId, modelId, variantId, makes, models, variants]);
 
   const handleApply = () => {
     // Ensure values are not "undefined" strings or empty
@@ -140,28 +176,6 @@ export default function MotoSelector({ onSelected, compact }: Props) {
       onSelected?.();
     }
   };
-
-  // Auto-apply when initialized from context with all required values
-  useEffect(() => {
-    if (initialized && makeId && makeId !== 'undefined' && modelId && modelId !== 'undefined' && variantId && variantId !== 'undefined' && makes.length > 0 && models.length > 0 && variants.length > 0) {
-      console.log('Auto-applying selected bike:', { makeId, modelId, variantId });
-      const make = makes.find(m => m.id === makeId);
-      const model = models.find(m => m.id === modelId);
-      const variant = variants.find(v => v.id === variantId);
-
-      if (make && model && variant) {
-        setSelected({
-          makeId: make.id,
-          makeName: make.name,
-          modelId: model.id,
-          modelName: model.name,
-          variantId: variant.id,
-          variantLabel: `${variant.year_from}-${variant.year_to || 'prezent'} ${variant.engine} ${variant.trim}`,
-        });
-        onSelected?.();
-      }
-    }
-  }, [initialized, makeId, modelId, variantId, makes, models, variants]);
 
   const containerClass = compact
     ? 'flex flex-wrap items-end gap-2'
