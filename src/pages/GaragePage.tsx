@@ -85,23 +85,27 @@ export default function GaragePage() {
       
       const response = await fetch(`${SUPABASE_URL}/rest/v1/user_garage?user_id=eq.${user.id}&order=created_at.asc`, { headers: authHeaders });
       const garageData = await response.json();
+      console.log('Garage data:', garageData);
 
       if (garageData && Array.isArray(garageData)) {
         // Fetch variant details for each garage item
         const variantIds = garageData.map((g: any) => g.moto_variant_id);
         if (variantIds.length > 0) {
-          const variantsRes = await fetch(`${SUPABASE_URL}/rest/v1/moto_variants?id=in.(${variantIds.join(',')})`, { headers });
+          const variantsRes = await fetch(`${SUPABASE_URL}/rest/v1/moto_variants?id=in.(${variantIds.join(',')})&select=*`, { headers });
           const variantsData = await variantsRes.json();
+          console.log('Variants data:', variantsData);
 
-          // Fetch models
+          // Fetch models with ID field
           const modelIds = variantsData.map((v: any) => v.model_id);
-          const modelsRes = await fetch(`${SUPABASE_URL}/rest/v1/moto_models?id=in.(${modelIds.join(',')})`, { headers });
+          const modelsRes = await fetch(`${SUPABASE_URL}/rest/v1/moto_models?id=in.(${modelIds.join(',')})&select=*`, { headers });
           const modelsData = await modelsRes.json();
+          console.log('Models data:', modelsData);
 
-          // Fetch makes
+          // Fetch makes with ID field
           const makeIds = modelsData.map((m: any) => m.make_id);
-          const makesRes = await fetch(`${SUPABASE_URL}/rest/v1/moto_makes?id=in.(${makeIds.join(',')})`, { headers });
+          const makesRes = await fetch(`${SUPABASE_URL}/rest/v1/moto_makes?id=in.(${makeIds.join(',')})&select=*`, { headers });
           const makesData = await makesRes.json();
+          console.log('Makes data:', makesData);
 
           // Build garage items with full data
           const fullGarage = garageData.map((g: any) => {
@@ -109,7 +113,7 @@ export default function GaragePage() {
             const model = modelsData.find((m: any) => m.id === variant?.model_id);
             const make = makesData.find((mk: any) => mk.id === model?.make_id);
 
-            return {
+            const item = {
               id: g.id,
               nickname: g.nickname,
               is_default: g.is_default,
@@ -129,6 +133,8 @@ export default function GaragePage() {
                 },
               },
             };
+            console.log('Built garage item:', item);
+            return item;
           });
 
           setGarage(fullGarage as any);
@@ -331,14 +337,16 @@ export default function GaragePage() {
                   <Link
                     to="/catalog"
                     onClick={() => {
-                      setSelected({
+                      const selection = {
                         makeId: String(item.moto_variants.moto_models.moto_makes.id),
                         makeName,
                         modelId: String(item.moto_variants.moto_models.id),
                         modelName,
                         variantId: String(item.moto_variants.id),
                         variantLabel,
-                      });
+                      };
+                      console.log('Setting selected from garage:', selection);
+                      setSelected(selection);
                     }}
                   >
                     <Button variant="default" size="sm" className="bg-primary text-primary-foreground">
