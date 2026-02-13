@@ -19,7 +19,7 @@ interface GarageItem {
   is_default: boolean;
   moto_variants: {
     id: string; year_from: number; year_to: number | null; engine: string; trim: string;
-    moto_models: { name: string; moto_makes: { name: string } };
+    moto_models: { id: string; name: string; moto_makes: { id: string; name: string } };
   };
 }
 
@@ -120,8 +120,12 @@ export default function GaragePage() {
                 engine: variant?.engine,
                 trim: variant?.trim,
                 moto_models: {
+                  id: model?.id,
                   name: model?.name,
-                  moto_makes: { name: make?.name },
+                  moto_makes: {
+                    id: make?.id,
+                    name: make?.name
+                  },
                 },
               },
             };
