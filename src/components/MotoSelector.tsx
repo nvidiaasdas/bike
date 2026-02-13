@@ -27,9 +27,9 @@ export default function MotoSelector({ onSelected, compact }: Props) {
   const [models, setModels] = useState<Model[]>([]);
   const [variants, setVariants] = useState<Variant[]>([]);
 
-  const [makeId, setMakeId] = useState(selected?.makeId || '');
-  const [modelId, setModelId] = useState(selected?.modelId || '');
-  const [variantId, setVariantId] = useState(selected?.variantId || '');
+  const [makeId, setMakeId] = useState('');
+  const [modelId, setModelId] = useState('');
+  const [variantId, setVariantId] = useState('');
   const [initialized, setInitialized] = useState(false);
 
   // Fetch makes via REST API
@@ -56,21 +56,23 @@ export default function MotoSelector({ onSelected, compact }: Props) {
   useEffect(() => {
     if (selected?.makeId && selected?.modelId && selected?.variantId && !initialized) {
       console.log('Initializing MotoSelector from context:', selected);
-      setMakeId(selected.makeId);
-      setModelId(selected.modelId);
-      setVariantId(selected.variantId);
+      setMakeId(String(selected.makeId));
+      setModelId(String(selected.modelId));
+      setVariantId(String(selected.variantId));
       setInitialized(true);
     }
-  }, [selected, initialized]);
+  }, [selected?.makeId, selected?.modelId, selected?.variantId, initialized]);
 
   useEffect(() => {
-    if (!makeId) {
+    if (!makeId || makeId === 'undefined') {
       setModels([]);
       return;
     }
 
     // Fetch models via REST API
-    fetch(`${SUPABASE_URL}/rest/v1/moto_models?make_id=eq.${makeId}&order=name.asc`, { headers })
+    const url = `${SUPABASE_URL}/rest/v1/moto_models?make_id=eq.${makeId}&order=name.asc`;
+    console.log('Fetching models from:', url);
+    fetch(url, { headers })
       .then(r => {
         if (!r.ok) {
           console.error('Models fetch error:', r.status);
@@ -89,13 +91,15 @@ export default function MotoSelector({ onSelected, compact }: Props) {
   }, [makeId]);
 
   useEffect(() => {
-    if (!modelId) {
+    if (!modelId || modelId === 'undefined') {
       setVariants([]);
       return;
     }
 
     // Fetch variants via REST API
-    fetch(`${SUPABASE_URL}/rest/v1/moto_variants?model_id=eq.${modelId}&order=year_from.asc`, { headers })
+    const url = `${SUPABASE_URL}/rest/v1/moto_variants?model_id=eq.${modelId}&order=year_from.asc`;
+    console.log('Fetching variants from:', url);
+    fetch(url, { headers })
       .then(r => {
         if (!r.ok) {
           console.error('Variants fetch error:', r.status);
@@ -114,6 +118,12 @@ export default function MotoSelector({ onSelected, compact }: Props) {
   }, [modelId]);
 
   const handleApply = () => {
+    // Ensure values are not "undefined" strings or empty
+    if (!makeId || !modelId || !variantId || makeId === 'undefined' || modelId === 'undefined' || variantId === 'undefined') {
+      console.error('Invalid selection values:', { makeId, modelId, variantId });
+      return;
+    }
+
     const make = makes.find(m => m.id === makeId);
     const model = models.find(m => m.id === modelId);
     const variant = variants.find(v => v.id === variantId);
@@ -133,7 +143,7 @@ export default function MotoSelector({ onSelected, compact }: Props) {
 
   // Auto-apply when initialized from context with all required values
   useEffect(() => {
-    if (initialized && makeId && modelId && variantId && makes.length > 0 && models.length > 0 && variants.length > 0) {
+    if (initialized && makeId && makeId !== 'undefined' && modelId && modelId !== 'undefined' && variantId && variantId !== 'undefined' && makes.length > 0 && models.length > 0 && variants.length > 0) {
       console.log('Auto-applying selected bike:', { makeId, modelId, variantId });
       const make = makes.find(m => m.id === makeId);
       const model = models.find(m => m.id === modelId);
