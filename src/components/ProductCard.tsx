@@ -70,19 +70,28 @@ export default function ProductCard({ product }: Props) {
 
           <Button
             size="sm"
-            disabled={!inStock}
-            onClick={() => addItem(product.id, Number(product.price))}
+            onClick={(e) => {
+              e.preventDefault();
+              addItem(product.id, Number(product.price));
+            }}
             className="bg-primary text-primary-foreground hover:bg-primary/90"
           >
             <ShoppingCart className="w-4 h-4" />
           </Button>
         </div>
 
-        <div className="mt-2">
-          {inStock ? (
-            <span className="text-xs text-success">● În stoc ({product.stock_qty})</span>
-          ) : (
-            <span className="text-xs text-destructive">● Pe comanda</span>
+        <div className="mt-2 space-y-1">
+          <div>
+            {inStock ? (
+              <span className="text-xs text-success">● În stoc ({product.stock_qty})</span>
+            ) : (
+              <span className="text-xs text-destructive">● Pe comanda</span>
+            )}
+          </div>
+          {weight && (
+            <div>
+              <span className="text-xs text-muted-foreground">Greutate: <span className="font-medium">{weight} kg</span></span>
+            </div>
           )}
         </div>
       </div>
