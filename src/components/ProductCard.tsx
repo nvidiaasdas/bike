@@ -26,6 +26,13 @@ export default function ProductCard({ product }: Props) {
   const inStock = product.stock_qty > 0;
   const weight = product.product_attributes?.find((attr: any) => attr.key?.toLowerCase() === 'greutate')?.value;
 
+  console.log('ProductCard rendered:', {
+    id: product.id,
+    name: product.name,
+    weight,
+    attributes: product.product_attributes
+  });
+
   return (
     <div className="group bg-card rounded-lg border border-border overflow-hidden hover:shadow-lg transition-all duration-300 hover:border-primary/30 animate-fade-in">
       <Link to={`/product/${product.slug}`} className="block relative aspect-square overflow-hidden bg-muted">
@@ -72,7 +79,13 @@ export default function ProductCard({ product }: Props) {
             size="sm"
             onClick={(e) => {
               e.preventDefault();
-              addItem(product.id, Number(product.price));
+              console.log('Add to cart clicked for product:', product.id, product.name);
+              try {
+                addItem(product.id, Number(product.price));
+              } catch (err) {
+                console.error('Error adding to cart:', err);
+                toast.error('Eroare la adăugarea în coș');
+              }
             }}
             className="bg-primary text-primary-foreground hover:bg-primary/90"
           >

@@ -238,21 +238,28 @@ export default function CatalogPage() {
         }
       }
 
-      // Fetch images for all products
+      // Fetch images and attributes for all products
       if (results && results.length > 0) {
         const productIds = results.map(p => p.id);
         try {
+          // Fetch images
           const imagesUrl = `${SUPABASE_URL}/rest/v1/product_images?product_id=in.(${productIds.join(',')})&order=sort_order.asc`;
           const imagesResponse = await fetch(imagesUrl, { headers });
           const images = await imagesResponse.json();
 
-          // Attach images to products
+          // Fetch attributes (including weight)
+          const attributesUrl = `${SUPABASE_URL}/rest/v1/product_attributes?product_id=in.(${productIds.join(',')})`;
+          const attributesResponse = await fetch(attributesUrl, { headers });
+          const attributes = await attributesResponse.json();
+
+          // Attach images and attributes to products
           results = results.map((product: any) => ({
             ...product,
             product_images: (images || []).filter((img: any) => img.product_id === product.id),
+            product_attributes: (attributes || []).filter((attr: any) => attr.product_id === product.id),
           }));
         } catch (err) {
-          console.error('Images fetch error:', err);
+          console.error('Images/attributes fetch error:', err);
         }
       }
 
