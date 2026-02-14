@@ -218,12 +218,20 @@ export default function CatalogPage() {
       if (selected?.variantId && !showAll) {
         try {
           const compatUrl = `${SUPABASE_URL}/rest/v1/compatibilities?moto_variant_id=eq.${selected.variantId}`;
+          console.log('Fetching compatibilities from:', compatUrl);
           const compatResponse = await fetch(compatUrl, { headers });
           const compat = await compatResponse.json();
 
-          if (compat && compat.length > 0) {
+          console.log('Compatibility result:', compat);
+
+          if (Array.isArray(compat) && compat.length > 0) {
+            console.log(`Found ${compat.length} compatible products`);
             const compatIds = new Set(compat.map((c: any) => c.product_id));
             results = results.filter((p: any) => compatIds.has(p.id));
+          } else {
+            // If no compatible items found, set results to empty
+            console.log('No compatible products found for variant:', selected.variantId);
+            results = [];
           }
         } catch (err) {
           console.error('Compatibility filter error:', err);
