@@ -1,9 +1,16 @@
-import { useEffect, useState } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { useEffect, useState, useRef } from 'react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { useMoto } from '@/contexts/MotoContext';
 import { Bike, Search } from 'lucide-react';
+
+const SUPABASE_URL = 'https://cgboawjncqqasijhqgkv.supabase.co';
+const API_KEY = 'sb_publishable_3w5FPK8BTYy6JQIuzHcFVA_rWVwrt5_';
+
+const headers = {
+  'apikey': API_KEY,
+  'Content-Type': 'application/json',
+};
 
 interface Make { id: string; name: string; slug: string }
 interface Model { id: string; name: string; slug: string }
@@ -15,43 +22,148 @@ interface Props {
 }
 
 export default function MotoSelector({ onSelected, compact }: Props) {
-  const { setSelected } = useMoto();
+  const { selected, setSelected } = useMoto();
   const [makes, setMakes] = useState<Make[]>([]);
   const [models, setModels] = useState<Model[]>([]);
   const [variants, setVariants] = useState<Variant[]>([]);
-  
+
   const [makeId, setMakeId] = useState('');
   const [modelId, setModelId] = useState('');
   const [variantId, setVariantId] = useState('');
+  const lastAppliedRef = useRef<string>('');
 
+  // Fetch makes via REST API
   useEffect(() => {
-    supabase.from('moto_makes').select('id, name, slug').order('name').then(({ data }) => {
-      if (data) setMakes(data);
-    });
+    fetch(`${SUPABASE_URL}/rest/v1/moto_makes?order=name.asc`, { headers })
+      .then(r => {
+        if (!r.ok) {
+          console.error('Makes fetch error:', r.status);
+          throw new Error(`HTTP ${r.status}`);
+        }
+        return r.json();
+      })
+      .then(data => {
+        console.log('Makes:', data);
+        setMakes(Array.isArray(data) ? data : []);
+      })
+      .catch(err => {
+        console.error('Makes error:', err);
+        setMakes([]);
+      });
   }, []);
 
+  // When selected changes from context, update local state
   useEffect(() => {
-    if (!makeId) { setModels([]); setModelId(''); return; }
-    supabase.from('moto_models').select('id, name, slug').eq('make_id', makeId).order('name').then(({ data }) => {
-      if (data) setModels(data);
-    });
-    setModelId('');
-    setVariantId('');
+    if (selected?.makeId && selected?.modelId && selected?.variantId) {
+      const selectionKey = `${selected.makeId}-${selected.modelId}-${selected.variantId}`;
+      console.log('Selected bike from context:', selected, 'key:', selectionKey);
+
+      // Only update if this is a new selection
+      if (selectionKey !== lastAppliedRef.current) {
+        setMakeId(String(selected.makeId));
+        setModelId(String(selected.modelId));
+        setVariantId(String(selected.variantId));
+      }
+    }
+  }, [selected?.makeId, selected?.modelId, selected?.variantId]);
+
+  useEffect(() => {
+    if (!makeId || makeId === 'undefined') {
+      setModels([]);
+      return;
+    }
+
+    // Fetch models via REST API
+    const url = `${SUPABASE_URL}/rest/v1/moto_models?make_id=eq.${makeId}&order=name.asc`;
+    console.log('Fetching models from:', url);
+    fetch(url, { headers })
+      .then(r => {
+        if (!r.ok) {
+          console.error('Models fetch error:', r.status);
+          throw new Error(`HTTP ${r.status}`);
+        }
+        return r.json();
+      })
+      .then(data => {
+        console.log('Models for make:', data);
+        const modelArray = Array.isArray(data) ? data : [];
+        setModels(modelArray);
+      })
+      .catch(err => {
+        console.error('Models error:', err);
+        setModels([]);
+      });
   }, [makeId]);
 
   useEffect(() => {
-    if (!modelId) { setVariants([]); setVariantId(''); return; }
-    supabase.from('moto_variants').select('id, year_from, year_to, engine, trim').eq('model_id', modelId).order('year_from').then(({ data }) => {
-      if (data) setVariants(data);
-    });
-    setVariantId('');
+    if (!modelId || modelId === 'undefined') {
+      setVariants([]);
+      return;
+    }
+
+    // Fetch variants via REST API
+    const url = `${SUPABASE_URL}/rest/v1/moto_variants?model_id=eq.${modelId}&order=year_from.asc`;
+    console.log('Fetching variants from:', url);
+    fetch(url, { headers })
+      .then(r => {
+        if (!r.ok) {
+          console.error('Variants fetch error:', r.status);
+          throw new Error(`HTTP ${r.status}`);
+        }
+        return r.json();
+      })
+      .then(data => {
+        console.log('Variants for model:', data);
+        const variantArray = Array.isArray(data) ? data : [];
+        setVariants(variantArray);
+      })
+      .catch(err => {
+        console.error('Variants error:', err);
+        setVariants([]);
+      });
   }, [modelId]);
 
+  // Auto-apply when all data is loaded from context selection
+  useEffect(() => {
+    if (!makeId || !modelId || !variantId) return;
+    if (makeId === 'undefined' || modelId === 'undefined' || variantId === 'undefined') return;
+    if (makes.length === 0 || models.length === 0 || variants.length === 0) return;
+
+    const selectionKey = `${makeId}-${modelId}-${variantId}`;
+
+    // Only apply if this is a new selection from context
+    if (selectionKey !== lastAppliedRef.current) {
+      console.log('Auto-applying from context:', { makeId, modelId, variantId });
+      const make = makes.find(m => m.id === makeId);
+      const model = models.find(m => m.id === modelId);
+      const variant = variants.find(v => v.id === variantId);
+
+      if (make && model && variant) {
+        setSelected({
+          makeId: make.id,
+          makeName: make.name,
+          modelId: model.id,
+          modelName: model.name,
+          variantId: variant.id,
+          variantLabel: `${variant.year_from}-${variant.year_to || 'prezent'} ${variant.engine} ${variant.trim}`,
+        });
+        onSelected?.();
+        lastAppliedRef.current = selectionKey;
+      }
+    }
+  }, [makeId, modelId, variantId, makes, models, variants]);
+
   const handleApply = () => {
+    // Ensure values are not "undefined" strings or empty
+    if (!makeId || !modelId || !variantId || makeId === 'undefined' || modelId === 'undefined' || variantId === 'undefined') {
+      console.error('Invalid selection values:', { makeId, modelId, variantId });
+      return;
+    }
+
     const make = makes.find(m => m.id === makeId);
     const model = models.find(m => m.id === modelId);
     const variant = variants.find(v => v.id === variantId);
-    
+
     if (make && model && variant) {
       setSelected({
         makeId: make.id,
@@ -86,7 +198,7 @@ export default function MotoSelector({ onSelected, compact }: Props) {
               <SelectValue placeholder="Producător" />
             </SelectTrigger>
             <SelectContent side="bottom" align="start" sideOffset={4}>
-              {makes.map(m => <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>)}
+              {Array.isArray(makes) && makes.map(m => <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>)}
             </SelectContent>
           </Select>
         </div>
@@ -98,7 +210,7 @@ export default function MotoSelector({ onSelected, compact }: Props) {
               <SelectValue placeholder="Model" />
             </SelectTrigger>
             <SelectContent side="bottom" align="start" sideOffset={4}>
-              {models.map(m => <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>)}
+              {Array.isArray(models) && models.map(m => <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>)}
             </SelectContent>
           </Select>
         </div>
@@ -110,7 +222,7 @@ export default function MotoSelector({ onSelected, compact }: Props) {
               <SelectValue placeholder="Motor / An" />
             </SelectTrigger>
             <SelectContent side="bottom" align="start" sideOffset={4}>
-              {variants.map(v => (
+              {Array.isArray(variants) && variants.map(v => (
                 <SelectItem key={v.id} value={v.id}>
                  {v.engine} {v.trim} {v.year_from}-{v.year_to || 'prezent'}
                 </SelectItem>

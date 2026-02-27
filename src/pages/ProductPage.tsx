@@ -9,6 +9,14 @@ import { Input } from '@/components/ui/input';
 import { ShoppingCart, Heart, Minus, Plus, CheckCircle, AlertCircle, ArrowLeft } from 'lucide-react';
 import { toast } from 'sonner';
 
+const SUPABASE_URL = 'https://cgboawjncqqasijhqgkv.supabase.co';
+const API_KEY = 'sb_publishable_3w5FPK8BTYy6JQIuzHcFVA_rWVwrt5_';
+
+const headers = {
+  'apikey': API_KEY,
+  'Content-Type': 'application/json',
+};
+
 export default function ProductPage() {
   const { slug } = useParams<{ slug: string }>();
   const { addItem } = useCart();
@@ -24,33 +32,77 @@ export default function ProductPage() {
     if (!slug) return;
     
     const fetchProduct = async () => {
-      const { data } = await supabase
-        .from('products')
-        .select(`*, brands(name, slug), categories(name, slug), product_images(id, url, sort_order), product_attributes(id, key, value)`)
-        .eq('slug', slug)
-        .single();
+      try {
+        // Fetch product by slug
+        const response = await fetch(`${SUPABASE_URL}/rest/v1/products?slug=eq.${slug}`, { headers });
+        const products = await response.json();
+        
+        if (!products || !products.length) {
+          setLoading(false);
+          return;
+        }
 
-      if (data) {
-        setProduct(data);
+        const productData = products[0];
         
-        // Fetch compatibilities
-        const { data: compat } = await supabase
-          .from('compatibilities')
-          .select('moto_variants(id, year_from, year_to, engine, trim, moto_models(name, moto_makes(name)))')
-          .eq('product_id', data.id);
-        
-        if (compat) setCompatModels(compat.map((c: any) => c.moto_variants));
+        // Fetch related data
+        const [imagesRes, attrsRes, compatRes] = await Promise.all([
+          fetch(`${SUPABASE_URL}/rest/v1/product_images?product_id=eq.${productData.id}&order=sort_order.asc`, { headers }),
+          fetch(`${SUPABASE_URL}/rest/v1/product_attributes?product_id=eq.${productData.id}`, { headers }),
+          fetch(`${SUPABASE_URL}/rest/v1/compatibilities?product_id=eq.${productData.id}`, { headers }),
+        ]);
+
+        const images = await imagesRes.json();
+        const attributes = await attrsRes.json();
+        const compatibilities = await compatRes.json();
+
+        // Fetch full compatibility data
+        let compatModelsData: any[] = [];
+        if (compatibilities && compatibilities.length > 0) {
+          const variantIds = compatibilities.map((c: any) => c.moto_variant_id);
+          const variantRes = await fetch(`${SUPABASE_URL}/rest/v1/moto_variants?id=in.(${variantIds.join(',')})`, { headers });
+          const variants = await variantRes.json();
+          
+          if (variants && variants.length > 0) {
+            // Fetch models for these variants
+            const modelIds = variants.map((v: any) => v.model_id);
+            const modelRes = await fetch(`${SUPABASE_URL}/rest/v1/moto_models?id=in.(${modelIds.join(',')})`, { headers });
+            const models = await modelRes.json();
+            
+            // Fetch makes for these models
+            const makeIds = models.map((m: any) => m.make_id);
+            const makeRes = await fetch(`${SUPABASE_URL}/rest/v1/moto_makes?id=in.(${makeIds.join(',')})`, { headers });
+            const makes = await makeRes.json();
+            
+            // Build compatibility data
+            compatModelsData = variants.map((v: any) => {
+              const model = models.find((m: any) => m.id === v.model_id);
+              const make = makes.find((mk: any) => mk.id === model?.make_id);
+              return {
+                ...v,
+                moto_models: {
+                  ...model,
+                  moto_makes: make,
+                },
+              };
+            });
+          }
+        }
+
+        setProduct({
+          ...productData,
+          product_images: images,
+          product_attributes: attributes,
+        });
+        setCompatModels(compatModelsData);
 
         // Check wishlist
         if (user) {
-          const { data: wl } = await supabase
-            .from('wishlists')
-            .select('id')
-            .eq('user_id', user.id)
-            .eq('product_id', data.id)
-            .maybeSingle();
-          setInWishlist(!!wl);
+          const wishRes = await fetch(`${SUPABASE_URL}/rest/v1/wishlists?user_id=eq.${user.id}&product_id=eq.${productData.id}`, { headers });
+          const wishes = await wishRes.json();
+          setInWishlist(wishes && wishes.length > 0);
         }
+      } catch (err) {
+        console.error('Product fetch error:', err);
       }
       setLoading(false);
     };
@@ -86,9 +138,10 @@ export default function ProductPage() {
     );
   }
 
-  const images = product.product_images?.sort((a: any, b: any) => a.sort_order - b.sort_order) || [];
+  const images = product.product_images?.sort((a: any, b: any) => (a.sort_order || 0) - (b.sort_order || 0)) || [];
   const mainImage = images[selectedImage]?.url || '/placeholder.svg';
   const inStock = product.stock_qty > 0;
+  const weight = product.product_attributes?.find((attr: any) => attr.key?.toLowerCase() === 'greutate')?.value;
 
   return (
     <div className="container py-8">
@@ -120,8 +173,8 @@ export default function ProductPage() {
         {/* Details */}
         <div>
           <div className="flex items-center gap-2 mb-2">
-            {product.brands && (
-              <Badge variant="secondary">{product.brands.name}</Badge>
+            {product.brand_id && (
+              <Badge variant="secondary">{product.brand_id}</Badge>
             )}
             {product.is_oem && <Badge variant="outline">OEM</Badge>}
             {product.condition === 'sh' && <Badge variant="outline">SH</Badge>}
@@ -131,7 +184,7 @@ export default function ProductPage() {
           
           <div className="flex items-center gap-3 text-sm text-muted-foreground mb-4">
             <span>SKU: {product.sku}</span>
-            {product.categories && <span>• {product.categories.name}</span>}
+            {product.category_id && <span>• {product.category_id}</span>}
           </div>
 
           <div className="flex items-baseline gap-2 mb-6">
@@ -143,17 +196,22 @@ export default function ProductPage() {
           </div>
 
           {/* Stock */}
-          <div className="flex items-center gap-2 mb-6">
-            {inStock ? (
-              <>
-                <CheckCircle className="w-5 h-5 text-success" />
-                <span className="text-success font-medium">În stoc ({product.stock_qty} buc)</span>
-              </>
-            ) : (
-              <>
-                <AlertCircle className="w-5 h-5 text-destructive" />
-                <span className="text-destructive font-medium">pe comanda</span>
-              </>
+          <div className="mb-6">
+            <div className="flex items-center gap-2 mb-2">
+              {inStock ? (
+                <>
+                  <CheckCircle className="w-5 h-5 text-success" />
+                  <span className="text-success font-medium">În stoc ({product.stock_qty} buc)</span>
+                </>
+              ) : (
+                <>
+                  <AlertCircle className="w-5 h-5 text-destructive" />
+                  <span className="text-destructive font-medium">pe comanda</span>
+                </>
+              )}
+            </div>
+            {!inStock && weight && (
+              <p className="text-sm text-muted-foreground">Greutate: {weight}</p>
             )}
           </div>
 

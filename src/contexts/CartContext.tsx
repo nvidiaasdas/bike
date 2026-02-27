@@ -8,6 +8,7 @@ interface CartItem {
   product_id: string;
   qty: number;
   price_snapshot: number;
+  weight_snapshot?: number;
   product?: {
     name: string;
     slug: string;
@@ -21,12 +22,13 @@ interface CartContextType {
   items: CartItem[];
   loading: boolean;
   cartId: string | null;
-  addItem: (productId: string, price: number, qty?: number) => Promise<void>;
+  addItem: (productId: string, price: number, qty?: number, weight?: number) => Promise<void>;
   updateQty: (itemId: string, qty: number) => Promise<void>;
   removeItem: (itemId: string) => Promise<void>;
   clearCart: () => Promise<void>;
   totalItems: number;
   totalPrice: number;
+  totalWeight: number;
   refreshCart: () => Promise<void>;
 }
 
@@ -45,7 +47,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const [items, setItems] = useState<CartItem[]>([]);
   const [cartId, setCartId] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   const getOrCreateCart = useCallback(async (): Promise<string> => {
     if (cartId) return cartId;
@@ -89,57 +91,108 @@ export function CartProvider({ children }: { children: ReactNode }) {
     setLoading(true);
     try {
       const sessionId = getSessionId();
+      console.log('Refreshing cart for user:', user?.id, 'sessionId:', sessionId);
+
       let query = supabase.from('carts').select('id');
       if (user) {
         query = query.eq('user_id', user.id);
       } else {
         query = query.eq('session_id', sessionId).is('user_id', null);
       }
-      
-      const { data: cart } = await query.maybeSingle();
-      if (!cart) {
+
+      const { data: cart, error: cartError } = await query.maybeSingle();
+
+      if (cartError) {
+        console.error('Cart fetch error:', cartError);
         setItems([]);
         setCartId(null);
         setLoading(false);
         return;
       }
 
+      if (!cart) {
+        console.log('No cart found');
+        setItems([]);
+        setCartId(null);
+        setLoading(false);
+        return;
+      }
+
+      console.log('Found cart:', cart.id);
       setCartId(cart.id);
-      
-      const { data: cartItems } = await supabase
+
+      const { data: cartItems, error: itemsError } = await supabase
         .from('cart_items')
-        .select(`id, product_id, qty, price_snapshot, products(name, slug, sku, stock_qty, product_images(url))`)
+        .select(`id, product_id, qty, price_snapshot, products(name, slug, sku, stock_qty, product_images(url), product_attributes(key, value))`)
         .eq('cart_id', cart.id);
 
+      if (itemsError) {
+        console.error('Cart items fetch error:', itemsError);
+        setItems([]);
+        setLoading(false);
+        return;
+      }
+
       if (cartItems) {
-        setItems(cartItems.map((ci: any) => ({
-          id: ci.id,
-          product_id: ci.product_id,
-          qty: ci.qty,
-          price_snapshot: ci.price_snapshot,
-          product: ci.products ? {
-            name: ci.products.name,
-            slug: ci.products.slug,
-            sku: ci.products.sku,
-            stock_qty: ci.products.stock_qty,
-            images: ci.products.product_images || [],
-          } : undefined,
-        })));
+        console.log('Found cart items:', cartItems.length);
+        setItems(cartItems.map((ci: any) => {
+          const weightAttr = ci.products?.product_attributes?.find((attr: any) => attr.key?.toLowerCase() === 'greutate');
+          const weight = weightAttr ? parseFloat(weightAttr.value) : 0;
+
+          return {
+            id: ci.id,
+            product_id: ci.product_id,
+            qty: ci.qty,
+            price_snapshot: ci.price_snapshot,
+            weight_snapshot: weight,
+            product: ci.products ? {
+              name: ci.products.name,
+              slug: ci.products.slug,
+              sku: ci.products.sku,
+              stock_qty: ci.products.stock_qty,
+              images: ci.products.product_images || [],
+            } : undefined,
+          };
+        }));
+      } else {
+        console.log('No cart items found');
+        setItems([]);
       }
     } catch (e) {
       console.error('Cart refresh error:', e);
+      // On error, show empty cart instead of blank page
+      setItems([]);
     }
     setLoading(false);
   }, [user]);
 
   useEffect(() => {
-    refreshCart();
+    // Add timeout to prevent hanging
+    let timeoutId: NodeJS.Timeout;
+
+    const loadCart = async () => {
+      timeoutId = setTimeout(() => {
+        console.warn('Cart refresh timed out, showing empty cart');
+        setLoading(false);
+        setItems([]);
+      }, 5000); // 5 second timeout
+
+      try {
+        await refreshCart();
+      } finally {
+        clearTimeout(timeoutId);
+      }
+    };
+
+    loadCart();
+
+    return () => clearTimeout(timeoutId);
   }, [user, refreshCart]);
 
-  const addItem = async (productId: string, price: number, qty = 1) => {
+  const addItem = async (productId: string, price: number, qty = 1, weight = 0) => {
     try {
       const cid = await getOrCreateCart();
-      
+
       // Check if item already exists
       const existing = items.find(i => i.product_id === productId);
       if (existing) {
@@ -153,7 +206,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
         qty,
         price_snapshot: price,
       });
-      
+
       toast.success('Produs adăugat în coș');
       await refreshCart();
     } catch (e: any) {
@@ -184,9 +237,10 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
   const totalItems = items.reduce((sum, i) => sum + i.qty, 0);
   const totalPrice = items.reduce((sum, i) => sum + i.qty * Number(i.price_snapshot), 0);
+  const totalWeight = items.reduce((sum, i) => sum + (i.qty * (i.weight_snapshot || 0)), 0);
 
   return (
-    <CartContext.Provider value={{ items, loading, cartId, addItem, updateQty, removeItem, clearCart, totalItems, totalPrice, refreshCart }}>
+    <CartContext.Provider value={{ items, loading, cartId, addItem, updateQty, removeItem, clearCart, totalItems, totalPrice, totalWeight, refreshCart }}>
       {children}
     </CartContext.Provider>
   );

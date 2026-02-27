@@ -16,6 +16,7 @@ interface Props {
     condition: string;
     brand?: { name: string } | null;
     images?: { url: string }[];
+    product_attributes?: { key: string; value: string }[];
   };
 }
 
@@ -23,6 +24,14 @@ export default function ProductCard({ product }: Props) {
   const { addItem } = useCart();
   const imgUrl = product.images?.[0]?.url || '/placeholder.svg';
   const inStock = product.stock_qty > 0;
+  const weight = product.product_attributes?.find((attr: any) => attr.key?.toLowerCase() === 'greutate')?.value;
+
+  console.log('ProductCard rendered:', {
+    id: product.id,
+    name: product.name,
+    weight,
+    attributes: product.product_attributes
+  });
 
   return (
     <div className="group bg-card rounded-lg border border-border overflow-hidden hover:shadow-lg transition-all duration-300 hover:border-primary/30 animate-fade-in">
@@ -68,19 +77,34 @@ export default function ProductCard({ product }: Props) {
 
           <Button
             size="sm"
-            disabled={!inStock}
-            onClick={() => addItem(product.id, Number(product.price))}
+            onClick={(e) => {
+              e.preventDefault();
+              console.log('Add to cart clicked for product:', product.id, product.name);
+              try {
+                addItem(product.id, Number(product.price));
+              } catch (err) {
+                console.error('Error adding to cart:', err);
+                toast.error('Eroare la adăugarea în coș');
+              }
+            }}
             className="bg-primary text-primary-foreground hover:bg-primary/90"
           >
             <ShoppingCart className="w-4 h-4" />
           </Button>
         </div>
 
-        <div className="mt-2">
-          {inStock ? (
-            <span className="text-xs text-success">● În stoc ({product.stock_qty})</span>
-          ) : (
-            <span className="text-xs text-destructive">● Pe comanda</span>
+        <div className="mt-2 space-y-1">
+          <div>
+            {inStock ? (
+              <span className="text-xs text-success">● În stoc ({product.stock_qty})</span>
+            ) : (
+              <span className="text-xs text-destructive">● Pe comanda</span>
+            )}
+          </div>
+          {weight && (
+            <div>
+              <span className="text-xs text-muted-foreground">Greutate: <span className="font-medium">{weight} kg</span></span>
+            </div>
           )}
         </div>
       </div>

@@ -21,14 +21,42 @@ export default function Header() {
   const [categories, setCategories] = useState<Category[]>([]);
 
   useEffect(() => {
-    // Fetch root categories from database
-    supabase.from('categories').select('id, name, slug, parent_id').order('sort_order').then(({ data }) => {
-      if (data) {
-        // Filter for root categories (no parent_id)
-        const rootCats = data.filter(c => !c.parent_id);
-        setCategories(rootCats);
+    // Fetch root categories from database using REST API
+    const fetchCategories = async () => {
+      try {
+        console.log('Fetching categories via REST API...');
+
+        // Use REST API directly with timeout
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 5000);
+
+        const response = await fetch(
+          'https://cgboawjncqqasijhqgkv.supabase.co/rest/v1/categories?parent_id=is.null&order=sort_order.asc',
+          {
+            headers: {
+              'apikey': 'sb_publishable_3w5FPK8BTYy6JQIuzHcFVA_rWVwrt5_',
+              'Content-Type': 'application/json',
+            },
+            signal: controller.signal,
+          }
+        );
+
+        clearTimeout(timeoutId);
+
+        if (!response.ok) {
+          console.error('❌ REST API error:', response.status, response.statusText);
+          return;
+        }
+
+        const data = await response.json();
+        console.log('✅ Categories fetched:', data?.length || 0, data);
+        setCategories(data || []);
+      } catch (err: any) {
+        console.error('❌ Categories fetch error:', err.message);
       }
-    });
+    };
+
+    fetchCategories();
   }, []);
 
   const handleSearch = (e: React.FormEvent) => {

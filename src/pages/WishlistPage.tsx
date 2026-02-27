@@ -5,23 +5,54 @@ import { useAuth } from '@/contexts/AuthContext';
 import ProductCard from '@/components/ProductCard';
 import { Heart } from 'lucide-react';
 
+const SUPABASE_URL = 'https://cgboawjncqqasijhqgkv.supabase.co';
+const API_KEY = 'sb_publishable_3w5FPK8BTYy6JQIuzHcFVA_rWVwrt5_';
+
 export default function WishlistPage() {
-  const { user } = useAuth();
+  const { user, session } = useAuth();
   const [products, setProducts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!user) return;
+    if (!user || !session) return;
     const fetchWishlist = async () => {
-      const { data } = await supabase
-        .from('wishlists')
-        .select('product_id, products(id, name, slug, price, stock_qty, is_oem, condition, brands(name), product_images(url))')
-        .eq('user_id', user.id);
-      if (data) setProducts(data.map((w: any) => w.products).filter(Boolean));
+      try {
+        const headers = {
+          'apikey': API_KEY,
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        };
+
+        // Fetch wishlist items
+        const wishRes = await fetch(`${SUPABASE_URL}/rest/v1/wishlists?user_id=eq.${user.id}`, { headers });
+        const wishlists = await wishRes.json();
+
+        if (wishlists && wishlists.length > 0) {
+          const productIds = wishlists.map((w: any) => w.product_id);
+
+          // Fetch products
+          const productsRes = await fetch(`${SUPABASE_URL}/rest/v1/products?id=in.(${productIds.join(',')})`, { headers });
+          const productsData = await productsRes.json();
+
+          // Fetch images for products
+          const imagesRes = await fetch(`${SUPABASE_URL}/rest/v1/product_images?product_id=in.(${productIds.join(',')})`, { headers });
+          const images = await imagesRes.json();
+
+          // Attach images to products
+          const productsWithImages = productsData.map((p: any) => ({
+            ...p,
+            product_images: (images || []).filter((img: any) => img.product_id === p.id),
+          }));
+
+          setProducts(productsWithImages);
+        }
+      } catch (err) {
+        console.error('Wishlist fetch error:', err);
+      }
       setLoading(false);
     };
     fetchWishlist();
-  }, [user]);
+  }, [user, session]);
 
   if (!user) return <Navigate to="/auth" />;
   if (loading) return <div className="container py-12"><div className="bg-muted animate-pulse h-64 rounded-lg" /></div>;

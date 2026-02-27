@@ -1,11 +1,11 @@
 import { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
-import { Bike } from 'lucide-react';
+import { Bike, ArrowLeft } from 'lucide-react';
 import { z } from 'zod';
 
 const loginSchema = z.object({
@@ -31,7 +31,10 @@ export default function AuthPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrors({});
-    
+
+    // Prevent duplicate submissions
+    if (loading) return;
+
     try {
       if (isLogin) {
         loginSchema.parse({ email, password });
@@ -60,25 +63,40 @@ export default function AuthPage() {
     } else {
       const { error } = await signUp(email, password, fullName);
       if (error) {
-        toast.error(error.message || 'Eroare la înregistrare');
+        if (error.message?.includes('rate')) {
+          toast.error('Prea multe încercări. Încearcă din nou peste câteva minute.');
+        } else {
+          toast.error(error.message || 'Eroare la înregistrare');
+        }
       } else {
-        toast.success('Cont creat! Verifică-ți emailul pentru confirmare.');
+        toast.success('Cont creat! Conectează-te cu datele tale.');
+        setEmail('');
+        setPassword('');
+        setFullName('');
+        setIsLogin(true);
       }
     }
     setLoading(false);
   };
 
   return (
-    <div className="min-h-[80vh] flex items-center justify-center py-12">
+    <div className="min-h-screen flex flex-col">
+      <div className="flex-1 flex items-center justify-center py-12">
       <div className="w-full max-w-md mx-auto px-4">
         <div className="bg-card rounded-lg border border-border p-8 shadow-sm">
-          <div className="flex items-center justify-center gap-2 mb-6">
-            <div className="w-10 h-10 bg-primary rounded-sm flex items-center justify-center">
-              <Bike className="w-6 h-6 text-primary-foreground" />
+          <div className="flex items-center justify-between gap-4 mb-6">
+            <Link to="/" className="inline-flex items-center justify-center gap-2 bg-orange-500 text-white px-4 py-2 rounded-lg hover:bg-orange-600 transition-colors duration-200 w-fit">
+              <ArrowLeft className="w-4 h-4" />
+              <span className="text-sm font-medium">Acasă</span>
+            </Link>
+            <div className="flex items-center justify-center gap-2">
+              <div className="w-10 h-10 bg-primary rounded-sm flex items-center justify-center">
+                <Bike className="w-6 h-6 text-primary-foreground" />
+              </div>
+              <span className="font-heading text-2xl font-bold">
+                MOTO<span className="text-primary">PARTS</span>
+              </span>
             </div>
-            <span className="font-heading text-2xl font-bold">
-              MOTO<span className="text-primary">PARTS</span>
-            </span>
           </div>
 
           <h1 className="font-heading text-2xl font-bold text-center mb-6">
@@ -137,6 +155,7 @@ export default function AuthPage() {
             </button>
           </div>
         </div>
+      </div>
       </div>
     </div>
   );

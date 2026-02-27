@@ -2,8 +2,8 @@
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from './types';
 
-const SUPABASE_URL = 'https://cgboawjncqqasijhqgkv.supabase.co';
-const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_3w5FPK8BTYy6JQIuzHcFVA_rWVwrt5_';
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://cgboawjncqqasijhqgkv.supabase.co';
+const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || 'sb_publishable_3w5FPK8BTYy6JQIuzHcFVA_rWVwrt5_';
 
 // Import the supabase client like this:
 // import { supabase } from "@/integrations/supabase/client";
@@ -13,5 +13,39 @@ export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABL
     storage: localStorage,
     persistSession: true,
     autoRefreshToken: true,
-  }
+  },
+  realtime: {
+    params: {
+      eventsPerSecond: 10,
+    },
+  },
 });
+
+// Test connection on init
+console.log('Supabase client initialized');
+console.log('URL:', SUPABASE_URL);
+console.log('Key:', SUPABASE_PUBLISHABLE_KEY?.substring(0, 20) + '...');
+
+// Simple connectivity test with timeout
+const testConnection = async () => {
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000);
+
+    const { data, error } = await supabase
+      .from('categories')
+      .select('count', { count: 'exact' });
+
+    clearTimeout(timeoutId);
+
+    if (error) {
+      console.error('❌ Supabase error:', error.message);
+    } else {
+      console.log('✅ Supabase connected successfully');
+    }
+  } catch (err: any) {
+    console.error('❌ Connection timeout or error:', err.message);
+  }
+};
+
+testConnection();
